@@ -119,8 +119,8 @@ for filename in file_list:
         i += 1
 # Speichern des df_fin
 os.chdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen\data")
-df_fin.to_excel("Transkripttabelle_test.xlsx")
-df_fin = pd.read_excel("Transkripttabelle_test.xlsx", index_col=0)
+df_fin.to_csv('Transkripttabelle_test.csv', index=False)
+df_fin = pd.read_csv('Transkripttabelle_test.csv')
 
 #Patientencorpus
 
