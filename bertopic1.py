@@ -139,8 +139,8 @@ classes_pat = df_pat["Class"]
 
 # Patientencorpus speichern und laden
 os.chdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen\data")
-df_pat.to_excel("Patientenabsätze_test.xlsx")
-df_pat = pd.read_excel("Patientenabsätze_test.xlsx", index_col=0)
+df_pat.to_csv('Patientenabsätze_test.csv', index=False)
+df_pat = pd.read_csv('Patientenabsätze_test.csv')
 
 
 
