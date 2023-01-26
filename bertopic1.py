@@ -128,8 +128,8 @@ for filename in file_list:
 # Speichern des df_fin
 path = os.path.join(base_path,sub_folder_data)
 os.chdir(path)
-df_fin.to_csv('Transkripttabelle_test.csv', index=False)
-df_fin = pd.read_csv('Transkripttabelle_test.csv')
+df_fin.to_json('Transkripttabelle_test.json', orient='split')
+df_fin = pd.read_json('Transkripttabelle_test.json',orient='split')
 
 #Patientencorpus
 
@@ -149,9 +149,8 @@ classes_pat = df_pat["Class"]
 # Patientencorpus speichern und laden
 path = os.path.join(base_path,sub_folder_data)
 os.chdir(path)
-df_pat.to_csv('Patientenabsätze_test.csv', index=False)
-df_pat = pd.read_csv('Patientenabsätze_test.csv')
-
+df_pat.to_json('Patientenabsätze_test.json', orient='split')
+df_pat = pd.read_json('Patientenabsätze_test.json',orient='split')
 
 
 
