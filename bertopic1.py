@@ -1,6 +1,13 @@
 from HanTa import HanoverTagger as ht
 import re
 import os
+# Create path and sub folders
+base_path = "C:/Users/Christopher/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
+sub_folder_processing = "data/processing"
+sub_folder_Test_transkripte = "data/Transkripte/Test-transkripte"
+sub_folder_data = "data"
+sub_folder_output = "output"
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -77,16 +84,17 @@ def clean_text(text):
     return text
 
 # open("stop_words_short.txt")
-os.chdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen\data\processing")
+path = os.path.join(base_path,sub_folder_processing)
+os.chdir(path)
 os.listdir()
 stop_words = []
 with open("stop_words_short.txt", 'r', encoding="utf8") as f:
     for line in f:
         stop_words.append(r'\b' + line.rstrip("\n") + r'\b') #\b ist wichtig, damit nur ganze Wörter entfernt werden
 
-
-file_list = os.listdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen\data\Transkripte\Test-transkripte")
-os.chdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen\data\Transkripte\Test-transkripte")
+path = os.path.join(base_path,sub_folder_Test_transkripte)
+file_list = os.listdir(path)
+os.chdir(path)
 print(file_list)
 
 # Dataframe mit Transkripten erstellen
@@ -118,7 +126,8 @@ for filename in file_list:
         df_fin.loc[i] = [sfn] + [sfn[0:4]] + [sfn[5:7]] + [sfn[8:10]] + [""] + [transcript_clean]
         i += 1
 # Speichern des df_fin
-os.chdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen\data")
+path = os.path.join(base_path,sub_folder_data)
+os.chdir(path)
 df_fin.to_csv('Transkripttabelle_test.csv', index=False)
 df_fin = pd.read_csv('Transkripttabelle_test.csv')
 
@@ -138,7 +147,8 @@ list_pat = df_pat["Patient"].tolist()
 classes_pat = df_pat["Class"]
 
 # Patientencorpus speichern und laden
-os.chdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen\data")
+path = os.path.join(base_path,sub_folder_data)
+os.chdir(path)
 df_pat.to_csv('Patientenabsätze_test.csv', index=False)
 df_pat = pd.read_csv('Patientenabsätze_test.csv')
 
@@ -192,14 +202,16 @@ tmt = TMT.wrapBERTopicModel(Berti)
 Berti = BERTopic(embedding_model=multilingual, top_n_words = 10, nr_topics="auto", n_gram_range = (1,3), calculate_probabilities=False, diversity=0.2, verbose = True)
 
 topics, probabilities = Berti.fit_transform(list_pat)
-os.chdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen")
+path = base_path
+os.chdir(path)
 model.save("my_model")
 model = BERTopic.load("my_model")
 
 # Remove additional stopwords
 vectorizer_model = CountVectorizer(stop_words=frozenset(["er", "sie","ihn", "ihr", "ihm", "sagt", "gesagt", "der", "die"]), ngram_range=(1, 3))
 model.update_topics(list_pat, vectorizer_model=vectorizer_model)
-os.chdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen")
+path = base_path
+os.chdir(path)
 model.save("model_sw_rm")
 model = BERTopic.load("model_sw_rm")
 
@@ -220,7 +232,8 @@ model_div.update_topics(list_pat, vectorizer_model=div)
 model_div.get_topic(9)
 
 # Save and load Patient-model
-os.chdir(r"C:\Users\Christopher\JLUbox\Transkriptanalysen\2 TOPIC MODELING\Analysen\output")
+path = os.path.join(base_path,sub_folder_output)
+os.chdir(path)
 model_div.save("Patient_model")
 model_div = BERTopic.load("Patient_model")
 
