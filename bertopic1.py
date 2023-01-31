@@ -4,7 +4,7 @@ import os
 # Create path and sub folders
 base_path = "C:/Users/Christopher/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
-sub_folder_Test_transkripte = "data/Transkripte/Test-transkripte"
+sub_folder_Test_transkripte = "data/Test-transkripte"
 sub_folder_data = "data"
 sub_folder_output = "output"
 
