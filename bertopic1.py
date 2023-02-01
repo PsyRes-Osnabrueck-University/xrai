@@ -343,3 +343,14 @@ topics, probs = topic_model.fit_transform(texts)
 topics_over_time = topic_model.topics_over_time(texts, topics, timestamps)
 
 topic_model.visualize_topics_over_time(topics_over_time, top_n_topics=10)
+
+
+
+
+# Topic-Document-Matrix erstellen
+topic_document_probabilities = pd.DataFrame(probabilities)
+topic_document_matrix = pd.concat([df_pat, topic_document_probabilities], axis =1 )
+
+#Aggregiere die Summen der Paragrafen zu einem Transkript
+cols_to_sum = topic_document_matrix.columns[2:]
+topic_document_matrix_sum = topic_document_matrix.groupby('Class')[cols_to_sum].sum()
