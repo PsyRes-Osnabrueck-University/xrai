@@ -354,3 +354,6 @@ topic_document_matrix = pd.concat([df_pat, topic_document_probabilities], axis =
 #Aggregiere die Summen der Paragrafen zu einem Transkript
 cols_to_sum = topic_document_matrix.columns[2:]
 topic_document_matrix_sum = topic_document_matrix.groupby('Class')[cols_to_sum].sum()
+
+## lese SPSS Daten ein
+sitzungsbogen = pd.read_spss('C:/Users/JLU-SU/JLUbox/Trierer DAten (Christopher Lalk)/Sitzungsbogen.sav')
