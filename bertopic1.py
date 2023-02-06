@@ -618,20 +618,24 @@ cols_to_sum = topic_document_matrix.columns[2:]
 topic_document_matrix_sum = topic_document_matrix.groupby('Class')[cols_to_sum].sum()
 
 # Füge den Sitzungscode ein
-session_list = [i[:-4] for i in topic_document_matrix_sum.index]
-session_list = [i.replace(" (fertig)", "") for i in session_list]
-session_list = [i.replace("(fertig)", "") for i in session_list]
-session_list = [i.replace("u15", "") for i in session_list]
-topic_document_matrix_sum.insert(0, column="session", value=session_list)
+session_list = [i[:-4] for i in topic_document_matrix_sum.index] # Dateiendung entfernen
+session_list = [i.replace(" (fertig)", "") for i in session_list] # Fertig entfernen
+session_list = [i.replace("(fertig)", "") for i in session_list] # ""
+session_list = [i.replace("u15", "") for i in session_list] # u15-Endung entfernen
+topic_document_matrix_sum.insert(0, column="session", value=session_list) # Spalte Session an Pos. 0 erstellen
 
 ## lese SPSS Daten ein
 path = os.path.join(base_path,sub_folder_processing)
 os.chdir(path)
 sitzungsbogen = pd.read_spss('Stundenbögen_20190810.sav')
 sitzungsbogen["session"] = sitzungsbogen["CODE"] + "_" + sitzungsbogen["INSTANCE"]
+topic_document_matrix_sum["hscl"]=0 # Spalte hscl erstellen
+for i in range(len(topic_document_matrix_sum)):
+    print(i)
+    session=topic_document_matrix_sum.iloc[[i]]["session"][0]
+    try: # Versuche den hscl zu übergeben
+        hscl = sitzungsbogen[sitzungsbogen['session'].str.match(session)]["Gesamtscore_hscl"].iloc[0]
+        topic_document_matrix_sum.iloc[i, -1] = hscl # die -1 steht für die hinterste Spalte. Muss ggbfalls angepasst werden, zb -2 für vorletzte Spalte
+    except Exception: # falls er ihn nicht findet, den Fehler ignorieren und NA eintragen.
+        topic_document_matrix_sum.iloc[i, -1] = "NA" # s.o.
 
-for i in len(topic_document_matrix_sum):
-    topic_document_matrix_sum
-
-
-topic_document_matrix_sum.at[df_fin["File"].tolist().index(sfn), 'Patient'] = transcript_clean
