@@ -606,7 +606,6 @@ os.chdir(path)
 model = BERTopic.load("Pat_10words_150")
 
 
-
 # Topic-Document-Matrix erstellen
 topic_document_probabilities = pd.DataFrame(model.probabilities_)
 topic_document_matrix = pd.concat([df_pat, topic_document_probabilities], axis =1 )
@@ -630,12 +629,43 @@ os.chdir(path)
 sitzungsbogen = pd.read_spss('Stundenbögen_20190810.sav')
 sitzungsbogen["session"] = sitzungsbogen["CODE"] + "_" + sitzungsbogen["INSTANCE"]
 topic_document_matrix_sum["hscl"]=0 # Spalte hscl erstellen
+
+### ab hier werden die hscl-scores in topic_document_matrix_sum eingetragen
 for i in range(len(topic_document_matrix_sum)):
     print(i)
     session=topic_document_matrix_sum.iloc[[i]]["session"][0]
+
+##### Dieser Part ist wichtig, da so die HSCL-Scores der nächsten Sitzung (nicht der aktuellen) vorhergesagt werden
+    try:
+        number = int(session[-2:])
+        number += 1
+        number_str = str(number).zfill(2)
+        next_session = session[:-2] + number_str
+    except ValueError:
+        next_session = session
+    print(next_session)
+    session = next_session
     try: # Versuche den hscl zu übergeben
         hscl = sitzungsbogen[sitzungsbogen['session'].str.match(session)]["Gesamtscore_hscl"].iloc[0]
         topic_document_matrix_sum.iloc[i, -1] = hscl # die -1 steht für die hinterste Spalte. Muss ggbfalls angepasst werden, zb -2 für vorletzte Spalte
     except Exception: # falls er ihn nicht findet, den Fehler ignorieren und NA eintragen.
         topic_document_matrix_sum.iloc[i, -1] = "NA" # s.o.
 
+### ab hier werden die srs_ges-scores in topic_document_matrix_sum eingetragen
+topic_document_matrix_sum["srs_ges"]=0 # Spalte srs_ges erstellen
+
+for i in range(len(topic_document_matrix_sum)):
+    print(i)
+    session=topic_document_matrix_sum.iloc[[i]]["session"][0]
+
+    try: # Versuche den srs_ges zu übergeben
+        srs_ges = sitzungsbogen[sitzungsbogen['session'].str.match(session)]["srs_ges"].iloc[0]
+        topic_document_matrix_sum.iloc[i, -1] = srs_ges # die -1 steht für die hinterste Spalte. Muss ggbfalls angepasst werden, zb -2 für vorletzte Spalte
+    except Exception: # falls er ihn nicht findet, den Fehler ignorieren und NA eintragen.
+      topic_document_matrix_sum.iloc[i, -1] = "NA" # s.o.
+        ### -> 16 NA/nan
+
+
+path = os.path.join(base_path,sub_folder_data)
+os.chdir(path)
+topic_document_matrix_sum.to_excel("topic_document_outcome_patient_5_250.xlsx")
