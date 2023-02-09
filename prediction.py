@@ -4,7 +4,6 @@ import numpy as np
 from numpy import absolute
 import pandas as pd
 import matplotlib.pyplot as plt
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 import itertools
 from IPython.display import display
 from typing import Tuple
@@ -34,13 +33,11 @@ import random
 import xgboost
 import shap
 from sklearn.metrics import mean_squared_error as MSE
-import farmhash
-from typing import Any, Callable
 import os
 
 
 
-base_path = "C:/Users/Christopher/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
+base_path = "C:/Users/JLU-SU/JLUbox/Transkriptanalysen (Christopher Lalk)/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
 sub_folder_transkripte = "data/transkripte"
 sub_folder_ML = "data/0 ML"
@@ -102,21 +99,21 @@ def split_preparation(test_splits, val_splits, df, outcome):
     #df_ml.insert(0, column, value)
     return df_ml, df_cv
 
-def find_params_xgb(X_valid, X_strain, y_valid, y_strain):
+def find_params_xgb(X_valid, X_strain, y_valid, y_strain, xgb_params, xgb_r2):
     results = []
     max_depths = list(range(2, 4))
-    params["max_depth"] = max_depths
+    xgb_params_grid["max_depth"] = max_depths
 
 
 
     # pipeline für xgbr
     clf = GridSearchCV(estimator=xgbr,
-                       param_grid=params,
+                       param_grid=xgb_params_grid,
                        scoring='neg_mean_squared_error',
                        verbose=1, n_jobs=-1, cv=5)
 
         #training model
-    results = clf.fit(X_strain, y_strain, eval_set = [(X_valid, y_valid)], verbose=0) #lasso
+    results = clf.fit(X_strain, y_strain, eval_set = [(X_valid, y_valid)], verbose=1) #lasso
 
     print(results.best_params_)
 
@@ -154,37 +151,68 @@ def find_params_xgb(X_valid, X_strain, y_valid, y_strain):
 
     results = clf.fit(X_strain, y_strain, eval_set = [(X_valid,y_valid)], verbose=0)
     print(results.best_params_)
-    print(abs(results.best_score_)**0.5)
-    list_best_params = []
-    list_r2 = []
-    list_best_iterations = []
+
 
     best_model = results.best_estimator_
-    list_best_params.append(clf.best_params_)
+    xgb_params.append(clf.best_params_)
     y_pred_valid = best_model.predict(X_valid)
+    y_valid = y_valid.reshape(-1,)
+    xgb_r2.append(rsquared(y_valid, y_pred_valid))
 
-    list_r2.append(rsquared(y_valid, y_pred_valid))
-    best_iterations.append(regressor.best_iteration)
-    print("1")
+    return xgb_r2, xgb_params
+
+def find_params_rf(X_valid, X_strain, y_valid, y_strain, rf_params, rf_r2):
+    mod_rf = GridSearchCV(estimator=rf,
+                                param_grid=rf_params_grid,
+                                cv=5,
+                                n_jobs=-1,
+                                verbose=2)
+    y_strain = y_strain.reshape(-1,)
+    results = mod_rf.fit(X_strain, y_strain)
+    best_model = results.best_estimator_
+    rf_params.append(mod_rf.best_params_)
+    y_pred_valid = best_model.predict(X_valid)
+    y_valid = y_valid.reshape(-1,)
+    rf_r2.append(rsquared(y_valid, y_pred_valid))
+
+    return rf_r2, rf_params
+
+def find_params_lasso(X_valid, X_strain, y_valid, y_strain, lasso_params, lasso_r2):
+    results = mod_lasso.fit(X_strain, y_strain)
+    best_model = results.best_estimator_
+    lasso_params.append(mod_lasso.best_params_)
+    y_pred_valid = best_model.predict(X_valid)
+    y_valid = y_valid.reshape(-1,)
+    lasso_r2.append(rsquared(y_valid, y_pred_valid))
+
+    return lasso_r2, lasso_params
 
 def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits):
     array_ml, array_cv = df_ml_to_array.values, df_cv_to_array.values
-
+    xgb_r2, xgb_params, lasso_r2, lasso_params, rf_r2, rf_params = [], [], [], [], [], []
     for col in range(array_cv.shape[1]): # Jede spalte durchgehen
         for inner_fold in range(val_splits): # jede Zeile durchgehen
             array_valid = array_ml[array_cv[:, col]==inner_fold] # X_valid erstellen
-            array_strain = array_ml[(array_cv[:, col]!=inner_fold) & (array_cv[:, col]!=-1)] # X train ist ungleich x_valid und ungleich x_test
+            array_strain = array_ml[(array_cv[:, col]!=inner_fold) & (array_cv[:, col]!=-1)] # X strain ist ungleich x_valid und ungleich x_test
             X_valid = array_valid[:, :-1]
             X_strain = array_strain[:, :-1]
-            y_valid = array_valid[:, -1:]
-            y_strain = array_strain[:, -1:]
+            y_valid = array_valid[:, [-1]]
+            y_strain = array_strain[:, [-1]]
+            #xgb_r2, xgb_params = find_params_xgb(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+            #                                     xgb_params=xgb_params,xgb_r2=xgb_r2)
 
-            return X_valid, X_strain, y_valid, y_strain
-            #find_params_xgb()
+            # lasso_r2, lasso_params = find_params_lasso(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+            #                                     lasso_params=lasso_params,lasso_r2=lasso_r2) # Lasso war nicht gut!
+
+            rf_r2, rf_params = find_params_rf(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+                                                 rf_params=rf_params,rf_r2=rf_r2)
+
+    return rf_r2, rf_params, xgb_r2, xgb_params, lasso_r2, lasso_params
 
 
-# parameter tuning
-params = {'max_depth': [2],
+
+# xgboost model
+xgb_params_grid = {'max_depth': [2],
            'learning_rate': [0.03],
            'n_estimators': [2000],
            'subsample': [0.4],
@@ -194,6 +222,38 @@ params = {'max_depth': [2],
 
 xgbr = xgboost.XGBRegressor(seed = 20, objective='reg:squarederror',
                             booster='gbtree')
+# Lasso Model
+pipeline = Pipeline([
+    ("scaler",StandardScaler()),
+    ('model', Lasso())
+])
+
+mod_lasso=GridSearchCV(pipeline, {"model__alpha":np.arange(0.01, 0.5, 0.005)}, cv=5, scoring="neg_mean_squared_error",
+                        verbose=3, n_jobs=-1)
+# Random Forest Model
+rf_params_grid = {
+    'bootstrap': [True],
+    'max_depth': [2, 5, 8],
+    'max_features': [2, 5, 10],
+    'min_samples_leaf': [3, 4, 5],
+    'min_samples_split': [8, 20, 50],
+    'n_estimators': [500]
+}
+
+rf = RandomForestRegressor()
+
+# BART Model
+bart_params_grid = {
+    'bootstrap': [True],
+    'max_depth': [2, 5, 8],
+    'max_features': [2, 5, 10],
+    'min_samples_leaf': [3, 4, 5],
+    'min_samples_split': [8, 20, 50],
+    'n_estimators': [500]
+}
+
+rf = RandomForestRegressor()
+
 path = os.path.join(base_path,sub_folder_ML)
 os.chdir(path)
 print(path)
@@ -206,8 +266,8 @@ outcome = "hscl" # Alternativ "srs_ges"
 df_ml, df_nested_cv = split_preparation(test_splits=test_sets, val_splits=val_sets, df=df, outcome=outcome) # Alternativ "srs_ges"
 df_ml = df_ml.iloc[:,1:] # erste Spalte löschen (session-Variable ist nicht ml-geeignet)
 
-X_valid, X_strain, y_valid, y_strain = cv_with_arrays(df_ml_to_array=df_ml, df_cv_to_array=df_nested_cv, val_splits=val_sets)
-
+xgb_r2, xgb_params, lasso_r2, lasso_params = cv_with_arrays(df_ml_to_array=df_ml, df_cv_to_array=df_nested_cv, val_splits=val_sets)
+np.median(lasso_r2)
 
 df.to_excel("saved_folds.xlsx", index=False)
 
