@@ -2,8 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/TopicTuner" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/gbert-large" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/sentencepiece" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/all-MiniLM-L6-v2" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/bert-base-german-cased" vcs="Git" />
   </component>
 </project>
