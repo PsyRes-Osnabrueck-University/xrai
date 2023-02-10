@@ -800,7 +800,14 @@ topic_document_matrix_sum["patientencode"] = topic_document_matrix_sum["session"
 
 
 topic_document_matrix_sum_diagnosen= pd.merge(topic_document_matrix_sum, diagnosen, on="patientencode", how="left") # übernehme diagnosen in topic document matrix sum
-topic_document_matrix_sum_diagnosen= topic_document_matrix_sum_diagnosen.drop(["patientencode"], axis=1) # schmeiße die Spalte patientencode raus
+
+## Berechne die Summen der Spalten "depression", "angst", "angst_depr", "keine","andere", "PTBS". Aber addiere den nächsten Wert nur, wenn in der Spalte "patientencode" (string) ein anderer Wert ist, als in der vorherigen Zeile
+### Löschen von duplizierten Zeilen mit gleichem patientencode
+df_ohne_duplikate = topic_document_matrix_sum_diagnosen.drop_duplicates(subset="patientencode")
+
+### Berechnen der Summen der Spalten "depression", "angst", "angst_depr", "keine","andere", "PTBS"
+anzahl_patienten_mit_diagnosen = df_ohne_duplikate[["depression", "angst", "angst_depr", "keine", "andere", "PTBS"]].sum()
+topic_document_matrix_sum_diagnosen_patient= topic_document_matrix_sum_diagnosen.drop(["patientencode"], axis=1)
     
 
 path = os.path.join(base_path,sub_folder_data)
