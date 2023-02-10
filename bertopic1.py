@@ -786,6 +786,22 @@ for i in range(len(topic_document_matrix_sum)):
         topic_document_matrix_sum.iloc[i, -1] = hscl_aktuelle_sitzung # die -1 steht für die hinterste Spalte. Muss ggbfalls angepasst werden, zb -2 für vorletzte Spalte
     except Exception: # falls er ihn nicht findet, den Fehler ignorieren und NA eintragen.
       topic_document_matrix_sum.iloc[i, -1] = "NA" # s.o.
+    
+    
+### Ab hier werden die Diagnosen eingetragen  
+path = os.path.join(base_path,sub_folder_data)
+os.chdir(path)
+diagnosen, meta = pyreadstat.read_sav('Bado_20190810_ausgefuehrt.sav') # vorbereitete Diagnosen aus SPSS werden eingelesen
+diagnosen = diagnosen[["CODE","depression", "angst", "angst_depr", "keine", "andere", "PTBS"]] # berücksichtige nur die folgenden Spalten
+
+diagnosen["patientencode"] = diagnosen["CODE"]
+diagnosen = diagnosen.drop(["CODE", "session"], axis=1)
+topic_document_matrix_sum["patientencode"] = topic_document_matrix_sum["session"].str[:7] 
+
+
+topic_document_matrix_sum_diagnosen= pd.merge(topic_document_matrix_sum, diagnosen, on="patientencode", how="left") # übernehme diagnosen in topic document matrix sum
+topic_document_matrix_sum_diagnosen= topic_document_matrix_sum_diagnosen.drop(["patientencode"], axis=1) # schmeiße die Spalte patientencode raus
+    
 
 path = os.path.join(base_path,sub_folder_data)
 os.chdir(path)
