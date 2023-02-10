@@ -772,6 +772,19 @@ for i in range(len(topic_document_matrix_sum)):
       topic_document_matrix_sum.iloc[i, -1] = "NA" # s.o.
         ### -> 16 NA/nan
 
+### ab hier werden die aktuellen hscl_scores in topic_document_matrix_sum eingetragen
+#### vorher muss ggf. der Sitzungsbogen und topic_document_outcome_patient_5_250.xlsx bzw. topic_document_outcome_therapeut_5_250 eingelesen werden
+topic_document_matrix_sum["hscl_aktuelle_sitzung"]=0 # Spalte hscl erstellen
+
+for i in range(len(topic_document_matrix_sum)):
+    print(i)
+    session=topic_document_matrix_sum.iloc[[i]]["session"][0]
+
+    try: # Versuche den HSCL zu übergeben
+        hscl_aktuelle_sitzung = sitzungsbogen[sitzungsbogen['session'].str.match(session)]["Gesamtscore_hscl"].iloc[0]
+        topic_document_matrix_sum.iloc[i, -1] = hscl_aktuelle_sitzung # die -1 steht für die hinterste Spalte. Muss ggbfalls angepasst werden, zb -2 für vorletzte Spalte
+    except Exception: # falls er ihn nicht findet, den Fehler ignorieren und NA eintragen.
+      topic_document_matrix_sum.iloc[i, -1] = "NA" # s.o.
 
 path = os.path.join(base_path,sub_folder_data)
 os.chdir(path)
