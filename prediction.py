@@ -34,10 +34,10 @@ import xgboost
 import shap
 from sklearn.metrics import mean_squared_error as MSE
 import os
+from bartpy.sklearnmodel import SklearnModel
 
 
-
-base_path = "C:/Users/JLU-SU/JLUbox/Transkriptanalysen (Christopher Lalk)/2 TOPIC MODELING/Analysen/"
+base_path = "C:/Users/Christopher/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
 sub_folder_transkripte = "data/transkripte"
 sub_folder_ML = "data/0 ML"
@@ -187,6 +187,23 @@ def find_params_lasso(X_valid, X_strain, y_valid, y_strain, lasso_params, lasso_
 
     return lasso_r2, lasso_params
 
+def find_params_bart(X_valid, X_strain, y_valid, y_strain, bart_params, bart_r2):
+    mod_bart = GridSearchCV(estimator=bart,
+                          param_grid=bart_params_grid,
+                          cv=5,
+                          n_jobs=-1,
+                          verbose=2)
+    y_strain = y_strain.reshape(-1,)
+    results = mod_bart.fit(X_strain, y_strain)
+    best_model = results.best_estimator_
+    bart_params.append(mod_lasso.best_params_)
+
+    y_pred_valid = bart.predict(X_valid)
+    y_valid = y_valid.reshape(-1, )
+    bart_r2.append(rsquared(y_valid, y_pred_valid))
+    return bart_params, bart_r2
+
+
 def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits):
     array_ml, array_cv = df_ml_to_array.values, df_cv_to_array.values
     xgb_r2, xgb_params, lasso_r2, lasso_params, rf_r2, rf_params = [], [], [], [], [], []
@@ -204,10 +221,11 @@ def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits):
             # lasso_r2, lasso_params = find_params_lasso(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
             #                                     lasso_params=lasso_params,lasso_r2=lasso_r2) # Lasso war nicht gut!
 
-            rf_r2, rf_params = find_params_rf(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
-                                                 rf_params=rf_params,rf_r2=rf_r2)
+            #rf_r2, rf_params = find_params_rf(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+            #                                     rf_params=rf_params,rf_r2=rf_r2)
 
-    return rf_r2, rf_params, xgb_r2, xgb_params, lasso_r2, lasso_params
+
+    return rf_r2, rf_params, xgb_r2, xgb_params, lasso_r2, lasso_params, X_strain, X_valid, y_strain, y_valid
 
 
 
@@ -244,15 +262,12 @@ rf = RandomForestRegressor()
 
 # BART Model
 bart_params_grid = {
-    'bootstrap': [True],
-    'max_depth': [2, 5, 8],
-    'max_features': [2, 5, 10],
-    'min_samples_leaf': [3, 4, 5],
-    'min_samples_split': [8, 20, 50],
-    'n_estimators': [500]
+    'n_trees': [200],
+    'alpha': [0.90],
+    'beta': [3],
 }
 
-rf = RandomForestRegressor()
+bart = SklearnModel()
 
 path = os.path.join(base_path,sub_folder_ML)
 os.chdir(path)
@@ -266,7 +281,7 @@ outcome = "hscl" # Alternativ "srs_ges"
 df_ml, df_nested_cv = split_preparation(test_splits=test_sets, val_splits=val_sets, df=df, outcome=outcome) # Alternativ "srs_ges"
 df_ml = df_ml.iloc[:,1:] # erste Spalte löschen (session-Variable ist nicht ml-geeignet)
 
-xgb_r2, xgb_params, lasso_r2, lasso_params = cv_with_arrays(df_ml_to_array=df_ml, df_cv_to_array=df_nested_cv, val_splits=val_sets)
+rf_r2, rf_params, xgb_r2, xgb_params, lasso_r2, lasso_params, X_strain, X_valid, y_strain, y_valid = cv_with_arrays(df_ml_to_array=df_ml, df_cv_to_array=df_nested_cv, val_splits=val_sets)
 np.median(lasso_r2)
 
 df.to_excel("saved_folds.xlsx", index=False)
