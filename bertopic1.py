@@ -2,6 +2,7 @@ from HanTa import HanoverTagger as ht
 import re
 import os
 import json
+import pyreadstat
 # Create path and sub folders
 base_path = "C:/Users/Christopher/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
