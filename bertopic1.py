@@ -806,12 +806,12 @@ topic_document_matrix_sum_diagnosen= pd.merge(topic_document_matrix_sum, diagnos
 df_ohne_duplikate = topic_document_matrix_sum_diagnosen.drop_duplicates(subset="patientencode")
 
 ### Berechnen der Summen der Spalten "depr_only", "angst_only", "angst_depr", "keine","andere"
-anzahl_patienten_mit_diagnosen = df_ohne_duplikate[["depr_only", "angst_only", "angst_depr", "keine", "andere"]].sum()
+anzahl_patienten_mit_diagnosen= df_ohne_duplikate[["depr_only", "angst_only", "angst_depr", "keine", "andere"]].sum()
 topic_document_matrix_sum_diagnosen_patient= topic_document_matrix_sum_diagnosen.drop(["patientencode"], axis=1)
     
 path = os.path.join(base_path,sub_folder_data)
 os.chdir(path)
-anzahl_patienten_mit_diagnosen .to_excel("anzahl_patienten_mit_diagnosen .xlsx")
+anzahl_patienten_mit_diagnosen.to_excel("anzahl_patienten_mit_diagnosen .xlsx")
 topic_document_matrix_sum_diagnosen_patient.to_excel("topic_document_matrix_sum_diagnosen_patient.xlsx")    
     
 
