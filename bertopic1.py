@@ -2,6 +2,7 @@ from HanTa import HanoverTagger as ht
 import re
 import os
 import json
+import pyreadstat
 # Create path and sub folders
 base_path = "C:/Users/Christopher/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
@@ -772,6 +773,47 @@ for i in range(len(topic_document_matrix_sum)):
       topic_document_matrix_sum.iloc[i, -1] = "NA" # s.o.
         ### -> 16 NA/nan
 
+### ab hier werden die aktuellen hscl_scores in topic_document_matrix_sum eingetragen
+#### vorher muss ggf. der Sitzungsbogen und topic_document_outcome_patient_5_250.xlsx bzw. topic_document_outcome_therapeut_5_250 eingelesen werden
+topic_document_matrix_sum["hscl_aktuelle_sitzung"]=0 # Spalte hscl erstellen
+
+for i in range(len(topic_document_matrix_sum)):
+    print(i)
+    session=topic_document_matrix_sum.iloc[[i]]["session"][0]
+
+    try: # Versuche den HSCL zu übergeben
+        hscl_aktuelle_sitzung = sitzungsbogen[sitzungsbogen['session'].str.match(session)]["Gesamtscore_hscl"].iloc[0]
+        topic_document_matrix_sum.iloc[i, -1] = hscl_aktuelle_sitzung # die -1 steht für die hinterste Spalte. Muss ggbfalls angepasst werden, zb -2 für vorletzte Spalte
+    except Exception: # falls er ihn nicht findet, den Fehler ignorieren und NA eintragen.
+      topic_document_matrix_sum.iloc[i, -1] = "NA" # s.o.
+    
+    
+### Ab hier werden die Diagnosen eingetragen  
+path = os.path.join(base_path,sub_folder_data)
+os.chdir(path)
+diagnosen, meta = pyreadstat.read_sav('Bado_20190810_ausgefuehrt.sav') # vorbereitete Diagnosen aus SPSS werden eingelesen
+diagnosen = diagnosen[["CODE","depr_only", "angst_only", "angst_depr", "keine", "andere"]] # berücksichtige nur die folgenden Spalten
+
+diagnosen["patientencode"] = diagnosen["CODE"]
+diagnosen = diagnosen.drop(["CODE", "session"], axis=1)
+topic_document_matrix_sum["patientencode"] = topic_document_matrix_sum["session"].str[:7] 
+
+
+topic_document_matrix_sum_diagnosen= pd.merge(topic_document_matrix_sum, diagnosen, on="patientencode", how="left") # übernehme diagnosen in topic document matrix sum
+
+## Berechne die Summen der Spalten "depr_only", "angst_only", "angst_depr", "keine","andere". Aber addiere den nächsten Wert nur, wenn in der Spalte "patientencode" (string) ein anderer Wert ist, als in der vorherigen Zeile
+### Löschen von duplizierten Zeilen mit gleichem patientencode
+df_ohne_duplikate = topic_document_matrix_sum_diagnosen.drop_duplicates(subset="patientencode")
+
+### Berechnen der Summen der Spalten "depr_only", "angst_only", "angst_depr", "keine","andere"
+anzahl_patienten_mit_diagnosen= df_ohne_duplikate[["depr_only", "angst_only", "angst_depr", "keine", "andere"]].sum()
+topic_document_matrix_sum_diagnosen_patient= topic_document_matrix_sum_diagnosen.drop(["patientencode"], axis=1)
+    
+path = os.path.join(base_path,sub_folder_data)
+os.chdir(path)
+anzahl_patienten_mit_diagnosen.to_excel("anzahl_patienten_mit_diagnosen .xlsx")
+topic_document_matrix_sum_diagnosen_patient.to_excel("topic_document_matrix_sum_diagnosen_patient.xlsx")    
+    
 
 path = os.path.join(base_path,sub_folder_data)
 os.chdir(path)
