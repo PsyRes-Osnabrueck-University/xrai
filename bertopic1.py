@@ -792,7 +792,7 @@ for i in range(len(topic_document_matrix_sum)):
 path = os.path.join(base_path,sub_folder_data)
 os.chdir(path)
 diagnosen, meta = pyreadstat.read_sav('Bado_20190810_ausgefuehrt.sav') # vorbereitete Diagnosen aus SPSS werden eingelesen
-diagnosen = diagnosen[["CODE","depression", "angst", "angst_depr", "keine", "andere", "PTBS"]] # berücksichtige nur die folgenden Spalten
+diagnosen = diagnosen[["CODE","depr_only", "angst_only", "angst_depr", "keine", "andere"]] # berücksichtige nur die folgenden Spalten
 
 diagnosen["patientencode"] = diagnosen["CODE"]
 diagnosen = diagnosen.drop(["CODE", "session"], axis=1)
@@ -801,12 +801,12 @@ topic_document_matrix_sum["patientencode"] = topic_document_matrix_sum["session"
 
 topic_document_matrix_sum_diagnosen= pd.merge(topic_document_matrix_sum, diagnosen, on="patientencode", how="left") # übernehme diagnosen in topic document matrix sum
 
-## Berechne die Summen der Spalten "depression", "angst", "angst_depr", "keine","andere", "PTBS". Aber addiere den nächsten Wert nur, wenn in der Spalte "patientencode" (string) ein anderer Wert ist, als in der vorherigen Zeile
+## Berechne die Summen der Spalten "depr_only", "angst_only", "angst_depr", "keine","andere". Aber addiere den nächsten Wert nur, wenn in der Spalte "patientencode" (string) ein anderer Wert ist, als in der vorherigen Zeile
 ### Löschen von duplizierten Zeilen mit gleichem patientencode
 df_ohne_duplikate = topic_document_matrix_sum_diagnosen.drop_duplicates(subset="patientencode")
 
-### Berechnen der Summen der Spalten "depression", "angst", "angst_depr", "keine","andere", "PTBS"
-anzahl_patienten_mit_diagnosen = df_ohne_duplikate[["depression", "angst", "angst_depr", "keine", "andere", "PTBS"]].sum()
+### Berechnen der Summen der Spalten "depr_only", "angst_only", "angst_depr", "keine","andere"
+anzahl_patienten_mit_diagnosen = df_ohne_duplikate[["depr_only", "angst_only", "angst_depr", "keine", "andere"]].sum()
 topic_document_matrix_sum_diagnosen_patient= topic_document_matrix_sum_diagnosen.drop(["patientencode"], axis=1)
     
 path = os.path.join(base_path,sub_folder_data)
