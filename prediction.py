@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import itertools
 from IPython.display import display
 from typing import Tuple
-
+from sklearn.svm import SVR
 
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split, cross_val_score
@@ -15,17 +15,26 @@ from sklearn.feature_selection import f_regression
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import RANSACRegressor
 from sklearn.decomposition import PCA
-
+from talos.utils import lr_normalizer
+import talos
+from talos.utils import hidden_layers
 
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
 from sklearn.linear_model import Lasso
+from sklearn.svm import SVR
+
 from sklearn.metrics import explained_variance_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import RepeatedKFold, RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.model_selection import TimeSeriesSplit
+from statistics import median
+from keras.models import Sequential
+from keras.layers import Conv1D, Dense, Flatten, Dropout
+from keras.callbacks import LearningRateScheduler
+import math
 
 from sklearn.linear_model import LinearRegression
 from sklearn import metrics
@@ -37,10 +46,10 @@ import os
 from bartpy.sklearnmodel import SklearnModel
 
 
-base_path = "C:/Users/Christopher/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
+base_path = "C:/Users/JLU-SU/JLUbox/Transkriptanalysen (Christopher Lalk)/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
 sub_folder_transkripte = "data/transkripte"
-sub_folder_ML = "data/0 ML"
+sub_folder_Patient = "data/Patient-hscl"
 
 def cor(x, y):
     """ Return R^2 where x and y are array-like."""
@@ -188,25 +197,84 @@ def find_params_lasso(X_valid, X_strain, y_valid, y_strain, lasso_params, lasso_
     return lasso_r2, lasso_params
 
 def find_params_bart(X_valid, X_strain, y_valid, y_strain, bart_params, bart_r2):
-    mod_bart = GridSearchCV(estimator=bart,
-                          param_grid=bart_params_grid,
-                          cv=5,
-                          n_jobs=-1,
-                          verbose=2)
+
     y_strain = y_strain.reshape(-1,)
+
+    mod_bart = SklearnModel()  # Use default parameters
+
     results = mod_bart.fit(X_strain, y_strain)
     best_model = results.best_estimator_
-    bart_params.append(mod_lasso.best_params_)
+    bart_params.append(mod_bart.best_params_)
 
-    y_pred_valid = bart.predict(X_valid)
+    y_pred_valid = mod_bart.predict(X_valid)
     y_valid = y_valid.reshape(-1, )
+    y_valid = y_valid.reshape(-1, 1)
+
     bart_r2.append(rsquared(y_valid, y_pred_valid))
+
     return bart_params, bart_r2
 
+def find_params_svr(X_valid, X_strain, y_valid, y_strain, svr_params, svr_r2):
+    print("yes")
+    mod_svr = GridSearchCV(estimator = svr_pipeline, param_grid = svr_params_grid,
+                      cv = 3, n_jobs = -1, verbose = 2)
+    y_strain = y_strain.reshape(-1, )
+    results = mod_svr.fit(X_strain, y_strain)
+    best_model = results.best_estimator_
+    svr_params.append(mod_svr.best_params_)
+    y_pred_valid = best_model.predict(X_valid)
+    y_valid = y_valid.reshape(-1, )
+    svr_r2.append(rsquared(y_valid, y_pred_valid))
 
-def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits):
+    return svr_r2, svr_params
+
+def tuning_cnn(x_train, y_train, x_val, y_val, params):
+        model = Sequential()
+        model.add(Dense(params['first_neuron'],
+                        input_dim=x_train.shape[1],
+                        activation='relu'))
+
+        model.add(Dropout(params['dropout']))
+        hidden_layers(model, params, 1)
+
+        model.compile(optimizer=params['optimizer'],
+                      loss="mean_squared_error",
+                      metrics=["mean_squared_error"])
+
+        out = model.fit(x_train, y_train,
+                        batch_size=params['batch_size'],
+                        epochs=150,
+                        verbose=0,
+                        validation_data=[x_val, y_val])
+
+        return out, model
+def cnn(X_valid, X_strain, y_valid, y_strain, cnn_r2):
+
+    history = cnn_mod.fit(X_strain, y_strain, batch_size=8, epochs=200,
+                        validation_data=(X_valid, y_valid))
+    y_pred_valid = cnn_mod.predict(X_valid)
+    y_valid = y_valid.reshape(-1, )
+    y_pred_valid = y_pred_valid.reshape(-1,)
+    cnn_r2.append(rsquared(y_valid, y_pred_valid))
+    return cnn_r2, history
+
+
+scan_object = talos.Scan(X_strain,
+                         y_strain,
+                         x_val=X_valid, y_val=y_valid,
+                         params=cnn_params_grid,
+                         model=tuning_cnn,
+                         experiment_name='cnn_tuning',
+                         fraction_limit=0.99)
+
+analyze_object = talos.Analyze(scan_object)
+analyze_object.rounds2high('val_loss')
+
+analyze_object.best_params('val_loss', ['acc'])
+analyze_object.correlate('val_loss', ['acc'])
+def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits, run_list):
     array_ml, array_cv = df_ml_to_array.values, df_cv_to_array.values
-    xgb_r2, xgb_params, lasso_r2, lasso_params, rf_r2, rf_params = [], [], [], [], [], []
+    xgb_r2, xgb_params, lasso_r2, lasso_params, rf_r2, rf_params, svr_r2, svr_params, cnn_r2 = [], [], [], [], [], [], [], [], []
     for col in range(array_cv.shape[1]): # Jede spalte durchgehen
         for inner_fold in range(val_splits): # jede Zeile durchgehen
             array_valid = array_ml[array_cv[:, col]==inner_fold] # X_valid erstellen
@@ -215,17 +283,29 @@ def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits):
             X_strain = array_strain[:, :-1]
             y_valid = array_valid[:, [-1]]
             y_strain = array_strain[:, [-1]]
-            #xgb_r2, xgb_params = find_params_xgb(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
-            #                                     xgb_params=xgb_params,xgb_r2=xgb_r2)
 
-            # lasso_r2, lasso_params = find_params_lasso(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
-            #                                     lasso_params=lasso_params,lasso_r2=lasso_r2) # Lasso war nicht gut!
+            if "xgboost" in run_list:
+                xgb_r2, xgb_params = find_params_xgb(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+                                                xgb_params=xgb_params,xgb_r2=xgb_r2)
+            if "lasso" in run_list:
+                lasso_r2, lasso_params = find_params_lasso(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+                                               lasso_params=lasso_params,lasso_r2=lasso_r2) # Lasso war nicht gut!
+            if "rf" in run_list:
+                rf_r2, rf_params = find_params_rf(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+                                                 rf_params=rf_params,rf_r2=rf_r2)
+        if "svr" in run_list:
+            svr_r2, svr_params = find_params_svr(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid,
+                                                  y_strain=y_strain,
+                                                  svr_params=svr_params, svr_r2=svr_r2)
+    if "cnn" in run_list:
+        cnn_r2, history = cnn(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid,
+                                             y_strain=y_strain,
+                                             cnn_r2=cnn_r2)
 
-            #rf_r2, rf_params = find_params_rf(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
-            #                                     rf_params=rf_params,rf_r2=rf_r2)
-
-
-    return rf_r2, rf_params, xgb_r2, xgb_params, lasso_r2, lasso_params, X_strain, X_valid, y_strain, y_valid
+    r2 = pd.DataFrame()
+    #r2["svr"] = svr_r2
+    r2["cnn"] = cnn_r2
+    return r2, X_valid, y_valid, X_strain, y_strain
 
 
 
@@ -260,19 +340,51 @@ rf_params_grid = {
 
 rf = RandomForestRegressor()
 
-# BART Model
-bart_params_grid = {
-    'n_trees': [200],
-    'alpha': [0.90],
-    'beta': [3],
+# SVM
+
+svr_pipeline = Pipeline([
+    ("scaler",StandardScaler()), # Auch hier müssen wir zuerst skalieren
+    ('model', SVR())
+])
+
+svr_params_grid = {
+    'model__kernel' : ('rbf'),
+    'model__C' : [1, 2, 5], #hatte 1 oder 2 als Optimum
+    'model__degree' : [2,3],
+    'model__coef0' : [0.0005, 0.001, 0.05], #hatte 0.001 als Optimum
+    'model__gamma' : ('auto','scale')}
+
+# cnn regression
+cnn_params_grid = {
+    'lr': [0.1, 0.01, 0.001],
+    'first_neuron':[32, 64],
+    'hidden_layers': [2],
+     'batch_size': [4, 8, 16],
+    'shapes': ["brick"],
+     'epochs': [150],
+     'dropout': [0, 0.2, 0.4, 0.6],
+     'optimizer': ["Adam"],
+    'last_activation': ["linear"],
+    'activation': ["relu"]
 }
 
-bart = SklearnModel()
+cnn_mod = Sequential()
+cnn_mod.add(Conv1D(32, kernel_size=3, activation="relu", input_shape=(249,1)))
+cnn_mod.add(Conv1D(16, kernel_size=3, activation="relu"))
+cnn_mod.add(Conv1D(16, kernel_size=3, activation="relu"))
+cnn_mod.add(Flatten())
+cnn_mod.add(Dense(1, activation="linear"))
+cnn_mod.compile(optimizer="adam", loss="mean_squared_error")
 
-path = os.path.join(base_path,sub_folder_ML)
+
+
+# SuperLearner
+
+# MUSS für jeden Datensatz nur einmal gemacht werden -------------------------------------------------------------------------
+path = os.path.join(base_path,sub_folder_Patient)
 os.chdir(path)
 print(path)
-df = pd.read_excel('topic_document_matrix_sum.xlsx', index_col=0)
+df = pd.read_excel('topic_document_outcome_patient_5_250.xlsx', index_col=0)
 
 test_sets, val_sets = 10, 5
 outcome = "hscl" # Alternativ "srs_ges"
@@ -281,11 +393,22 @@ outcome = "hscl" # Alternativ "srs_ges"
 df_ml, df_nested_cv = split_preparation(test_splits=test_sets, val_splits=val_sets, df=df, outcome=outcome) # Alternativ "srs_ges"
 df_ml = df_ml.iloc[:,1:] # erste Spalte löschen (session-Variable ist nicht ml-geeignet)
 
-rf_r2, rf_params, xgb_r2, xgb_params, lasso_r2, lasso_params, X_strain, X_valid, y_strain, y_valid = cv_with_arrays(df_ml_to_array=df_ml, df_cv_to_array=df_nested_cv, val_splits=val_sets)
-np.median(lasso_r2)
+df_ml.to_excel("data.xlsx", index=False)
+df_nested_cv.to_excel("CV_folds.xlsx", index=False)
 
-df.to_excel("saved_folds.xlsx", index=False)
+# Bei fertigem Datansatz AB HIER!!! --------------------------------------------------------------------------------------------------
 
+path = os.path.join(base_path,sub_folder_Patient)
+os.chdir(path)
+print(path)
+df_ml = pd.read_excel('data.xlsx', index_col=0)
+df_nested_cv = pd.read_excel('CV_folds.xlsx', index_col=0)
+run_list=[] # additional "rf", "bart", "lasso", "cnn", "xgboost", "super", "cnn"
+val_sets = 5
+
+r2, X_valid, y_valid, X_strain, y_strain = cv_with_arrays(df_ml_to_array=df_ml, df_cv_to_array=df_nested_cv, val_splits=val_sets, run_list=run_list)
+
+median(rf_r2)
 
 
 RANDOMSTATE = 42
