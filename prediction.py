@@ -8,6 +8,9 @@ import itertools
 from IPython.display import display
 from typing import Tuple
 from sklearn.svm import SVR
+import matplotlib
+from sklearn.model_selection import KFold
+
 
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split, cross_val_score
@@ -46,7 +49,7 @@ import os
 from bartpy.sklearnmodel import SklearnModel
 
 
-base_path = "C:/Users/JLU-SU/JLUbox/Transkriptanalysen (Christopher Lalk)/2 TOPIC MODELING/Analysen/"
+base_path = "C:/Users/Christopher/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
 sub_folder_transkripte = "data/transkripte"
 sub_folder_Patient = "data/Patient-hscl"
@@ -108,7 +111,7 @@ def split_preparation(test_splits, val_splits, df, outcome):
     #df_ml.insert(0, column, value)
     return df_ml, df_cv
 
-def find_params_xgb(X_valid, X_strain, y_valid, y_strain, xgb_params, xgb_r2):
+def find_params_xgb(X_valid, X_strain, y_valid, y_strain, xgb_params, xgb_r2, xgb_nrmse):
     results = []
     max_depths = list(range(2, 4))
     xgb_params_grid["max_depth"] = max_depths
@@ -164,13 +167,14 @@ def find_params_xgb(X_valid, X_strain, y_valid, y_strain, xgb_params, xgb_r2):
 
     best_model = results.best_estimator_
     xgb_params.append(clf.best_params_)
-    y_pred_valid = best_model.predict(X_valid)
+    xgb_pred = best_model.predict(X_valid)
+    xgb_pred_t = best_model.predict(X_strain)
     y_valid = y_valid.reshape(-1,)
-    xgb_r2.append(rsquared(y_valid, y_pred_valid))
+    xgb_r2.append(rsquared(y_valid, xgb_pred))
+    xgb_nrmse.append(metrics.mean_squared_error(y_valid, xgb_pred, squared=False) / statistics.stdev(y_valid))
+    return xgb_r2, xgb_params, xgb_nrmse, xgb_pred, xgb_pred_t
 
-    return xgb_r2, xgb_params
-
-def find_params_rf(X_valid, X_strain, y_valid, y_strain, rf_params, rf_r2):
+def find_params_rf(X_valid, X_strain, y_valid, y_strain, rf_params, rf_r2, rf_nrmse):
     mod_rf = GridSearchCV(estimator=rf,
                                 param_grid=rf_params_grid,
                                 cv=5,
@@ -180,21 +184,24 @@ def find_params_rf(X_valid, X_strain, y_valid, y_strain, rf_params, rf_r2):
     results = mod_rf.fit(X_strain, y_strain)
     best_model = results.best_estimator_
     rf_params.append(mod_rf.best_params_)
-    y_pred_valid = best_model.predict(X_valid)
+    rf_pred = best_model.predict(X_valid)
+    rf_pred_t = best_model.predict(X_strain)
     y_valid = y_valid.reshape(-1,)
-    rf_r2.append(rsquared(y_valid, y_pred_valid))
+    rf_r2.append(rsquared(y_valid, rf_pred))
+    rf_nrmse.append(metrics.mean_squared_error(y_valid, rf_pred, squared=False) / statistics.stdev(y_valid))
+    return rf_r2, rf_params, rf_nrmse, rf_pred, rf_pred_t
 
-    return rf_r2, rf_params
-
-def find_params_lasso(X_valid, X_strain, y_valid, y_strain, lasso_params, lasso_r2):
+def find_params_lasso(X_valid, X_strain, y_valid, y_strain, lasso_params, lasso_r2, lasso_nrmse):
     results = mod_lasso.fit(X_strain, y_strain)
     best_model = results.best_estimator_
     lasso_params.append(mod_lasso.best_params_)
-    y_pred_valid = best_model.predict(X_valid)
+    lasso_pred = best_model.predict(X_valid)
+    lasso_pred_t = best_model.predict(X_strain)
     y_valid = y_valid.reshape(-1,)
-    lasso_r2.append(rsquared(y_valid, y_pred_valid))
+    lasso_r2.append(rsquared(y_valid, lasso_pred))
+    lasso_nrmse.append(metrics.mean_squared_error(y_valid, lasso_pred, squared=False) / statistics.stdev(y_valid))
 
-    return lasso_r2, lasso_params
+    return lasso_r2, lasso_params, lasso_nrmse, lasso_pred, lasso_pred_t
 
 def find_params_bart(X_valid, X_strain, y_valid, y_strain, bart_params, bart_r2):
 
@@ -214,7 +221,7 @@ def find_params_bart(X_valid, X_strain, y_valid, y_strain, bart_params, bart_r2)
 
     return bart_params, bart_r2
 
-def find_params_svr(X_valid, X_strain, y_valid, y_strain, svr_params, svr_r2):
+def find_params_svr(X_valid, X_strain, y_valid, y_strain, svr_params, svr_r2, svr_nrmse):
     print("yes")
     mod_svr = GridSearchCV(estimator = svr_pipeline, param_grid = svr_params_grid,
                       cv = 3, n_jobs = -1, verbose = 2)
@@ -222,59 +229,44 @@ def find_params_svr(X_valid, X_strain, y_valid, y_strain, svr_params, svr_r2):
     results = mod_svr.fit(X_strain, y_strain)
     best_model = results.best_estimator_
     svr_params.append(mod_svr.best_params_)
-    y_pred_valid = best_model.predict(X_valid)
+    svr_pred = best_model.predict(X_valid)
+    svr_pred_t = best_model.predict(X_strain)
     y_valid = y_valid.reshape(-1, )
-    svr_r2.append(rsquared(y_valid, y_pred_valid))
+    svr_r2.append(rsquared(y_valid, svr_pred))
+    svr_nrmse.append(metrics.mean_squared_error(y_valid, svr_pred, squared=False) / statistics.stdev(y_valid))
 
-    return svr_r2, svr_params
+    return svr_r2, svr_params, svr_nrmse, svr_pred, svr_pred_t
 
-def tuning_cnn(x_train, y_train, x_val, y_val, params):
-        model = Sequential()
-        model.add(Dense(params['first_neuron'],
-                        input_dim=x_train.shape[1],
-                        activation='relu'))
+def cnn(X_valid, X_strain, y_valid, y_strain, cnn_r2, cnn_nrmse):
+    cnn_mod = Sequential()
+    cnn_mod.add(Conv1D(64, kernel_size=3, activation="relu", input_shape=(249, 1)))
+    cnn_mod.add(Conv1D(16, kernel_size=3, activation="relu"))
+    cnn_mod.add(Conv1D(16, kernel_size=3, activation="relu"))
+    cnn_mod.add(Flatten())
+    cnn_mod.add(Dropout(0.1))
+    cnn_mod.add(Dense(1, activation="linear"))
+    cnn_mod.compile(optimizer="adam", loss="mean_squared_error")
 
-        model.add(Dropout(params['dropout']))
-        hidden_layers(model, params, 1)
-
-        model.compile(optimizer=params['optimizer'],
-                      loss="mean_squared_error",
-                      metrics=["mean_squared_error"])
-
-        out = model.fit(x_train, y_train,
-                        batch_size=params['batch_size'],
-                        epochs=150,
-                        verbose=0,
-                        validation_data=[x_val, y_val])
-
-        return out, model
-def cnn(X_valid, X_strain, y_valid, y_strain, cnn_r2):
-
-    history = cnn_mod.fit(X_strain, y_strain, batch_size=8, epochs=200,
-                        validation_data=(X_valid, y_valid))
-    y_pred_valid = cnn_mod.predict(X_valid)
+    history = cnn_mod.fit(X_strain, y_strain, batch_size=8, epochs=100,
+                        verbose=0)
+    cnn_pred = cnn_mod.predict(X_valid)
     y_valid = y_valid.reshape(-1, )
-    y_pred_valid = y_pred_valid.reshape(-1,)
-    cnn_r2.append(rsquared(y_valid, y_pred_valid))
-    return cnn_r2, history
+    cnn_pred = cnn_pred.reshape(-1,)
+    cnn_pred_t = best_model.predict(X_train)
+    cnn_pred_t = cnn_pred_t.reshape(-1,)
+    cnn_r2.append(rsquared(y_valid, cnn_pred))
+    cnn_nrmse.append(metrics.mean_squared_error(y_valid, cnn_pred, squared=False) / statistics.stdev(y_valid))
+    return cnn_r2, history, cnn_nrmse, cnn_pred, cnn_pred_t
 
 
-scan_object = talos.Scan(X_strain,
-                         y_strain,
-                         x_val=X_valid, y_val=y_valid,
-                         params=cnn_params_grid,
-                         model=tuning_cnn,
-                         experiment_name='cnn_tuning',
-                         fraction_limit=0.99)
 
-analyze_object = talos.Analyze(scan_object)
-analyze_object.rounds2high('val_loss')
-
-analyze_object.best_params('val_loss', ['acc'])
-analyze_object.correlate('val_loss', ['acc'])
 def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits, run_list):
     array_ml, array_cv = df_ml_to_array.values, df_cv_to_array.values
-    xgb_r2, xgb_params, lasso_r2, lasso_params, rf_r2, rf_params, svr_r2, svr_params, cnn_r2 = [], [], [], [], [], [], [], [], []
+    xgb_r2, xgb_params, xgb_nrmse = [], [], []
+    lasso_r2, lasso_params, lasso_nrmse = [], [], []
+    rf_r2, rf_params, rf_nrsme = [], [], []
+    svr_r2, svr_params, svr_nrmse = [], [], []
+    cnn_r2, cnn_nrmse = [], []
     for col in range(array_cv.shape[1]): # Jede spalte durchgehen
         for inner_fold in range(val_splits): # jede Zeile durchgehen
             array_valid = array_ml[array_cv[:, col]==inner_fold] # X_valid erstellen
@@ -284,28 +276,25 @@ def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits, run_list):
             y_valid = array_valid[:, [-1]]
             y_strain = array_strain[:, [-1]]
 
-            if "xgboost" in run_list:
-                xgb_r2, xgb_params = find_params_xgb(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
-                                                xgb_params=xgb_params,xgb_r2=xgb_r2)
-            if "lasso" in run_list:
-                lasso_r2, lasso_params = find_params_lasso(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
-                                               lasso_params=lasso_params,lasso_r2=lasso_r2) # Lasso war nicht gut!
-            if "rf" in run_list:
-                rf_r2, rf_params = find_params_rf(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
-                                                 rf_params=rf_params,rf_r2=rf_r2)
+           if "lasso" in run_list:
+                lasso_r2, lasso_params, lasso_nrmse, lasso_pred, lasso_pred_t = find_params_lasso(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+                                               lasso_params=lasso_params,lasso_r2=lasso_r2, lasso_nrmse=lasso_nrmse) # Lasso war nicht gut!
+        if "rf" in run_list:
+            rf_r2, rf_params, rf_nrmse, rf_pred, rf_pred_t = find_params_rf(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+                                                 rf_params=rf_params,rf_r2=rf_r2, rf_nrmse=rf_nrmse)
         if "svr" in run_list:
-            svr_r2, svr_params = find_params_svr(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid,
+            svr_r2, svr_params, svr_nrmse, svr_pred, svr_pred_t = find_params_svr(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid,
                                                   y_strain=y_strain,
-                                                  svr_params=svr_params, svr_r2=svr_r2)
-    if "cnn" in run_list:
-        cnn_r2, history = cnn(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid,
+                                                  svr_params=svr_params, svr_r2=svr_r2, svr_nrmse=svr_nrmse)
+        if "cnn" in run_list:
+            cnn_r2, history, cnn_nrsme, cnn_pred, cnn_pred_t = cnn(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid,
                                              y_strain=y_strain,
-                                             cnn_r2=cnn_r2)
+                                             cnn_r2=cnn_r2, cnn_nrmse)
+    if "xgboost" in run_list:
+        xgb_r2, xgb_params, xgb_nrmse, xgb_pred, xgb_pred_t = find_params_xgb(X_valid=X_valid, X_strain=X_strain, y_valid=y_valid, y_strain=y_strain,
+                                             xgb_params=xgb_params, xgb_r2=xgb_r2, xgb_nrmse)
 
-    r2 = pd.DataFrame()
-    #r2["svr"] = svr_r2
-    r2["cnn"] = cnn_r2
-    return r2, X_valid, y_valid, X_strain, y_strain
+    return cnn_r2, xgb_r2, X_valid, y_valid, X_strain, y_strain
 
 
 
@@ -321,12 +310,12 @@ xgb_params_grid = {'max_depth': [2],
 xgbr = xgboost.XGBRegressor(seed = 20, objective='reg:squarederror',
                             booster='gbtree')
 # Lasso Model
-pipeline = Pipeline([
+lasso_pipeline = Pipeline([
     ("scaler",StandardScaler()),
     ('model', Lasso())
 ])
 
-mod_lasso=GridSearchCV(pipeline, {"model__alpha":np.arange(0.01, 0.5, 0.005)}, cv=5, scoring="neg_mean_squared_error",
+mod_lasso=GridSearchCV(lasso_pipeline, {"model__alpha":np.arange(0.01, 0.5, 0.005)}, cv=5, scoring="neg_mean_squared_error",
                         verbose=3, n_jobs=-1)
 # Random Forest Model
 rf_params_grid = {
@@ -356,10 +345,10 @@ svr_params_grid = {
 
 # cnn regression
 cnn_params_grid = {
-    'lr': [0.1, 0.01, 0.001],
-    'first_neuron':[32, 64],
+    'lr': [0.001],
+    'first_neuron':[64],
     'hidden_layers': [2],
-     'batch_size': [4, 8, 16],
+     'batch_size': [8],
     'shapes': ["brick"],
      'epochs': [150],
      'dropout': [0, 0.2, 0.4, 0.6],
@@ -367,18 +356,26 @@ cnn_params_grid = {
     'last_activation': ["linear"],
     'activation': ["relu"]
 }
-
 cnn_mod = Sequential()
-cnn_mod.add(Conv1D(32, kernel_size=3, activation="relu", input_shape=(249,1)))
+cnn_mod.add(Conv1D(64, kernel_size=3, activation="relu", input_shape=(249, 1)))
 cnn_mod.add(Conv1D(16, kernel_size=3, activation="relu"))
 cnn_mod.add(Conv1D(16, kernel_size=3, activation="relu"))
 cnn_mod.add(Flatten())
+cnn_mod.add(Dropout(0.1))
 cnn_mod.add(Dense(1, activation="linear"))
 cnn_mod.compile(optimizer="adam", loss="mean_squared_error")
 
-
-
 # SuperLearner
+
+
+SuperLearner = list()
+SuperLearner.append(xgbr)
+SuperLearner.append(lasso_pipeline)
+SuperLearner.append(rf)
+SuperLearner.append(svr_pipeline)
+SuperLearner.append(cnn_mod)
+
+
 
 # MUSS für jeden Datensatz nur einmal gemacht werden -------------------------------------------------------------------------
 path = os.path.join(base_path,sub_folder_Patient)
@@ -401,14 +398,36 @@ df_nested_cv.to_excel("CV_folds.xlsx", index=False)
 path = os.path.join(base_path,sub_folder_Patient)
 os.chdir(path)
 print(path)
-df_ml = pd.read_excel('data.xlsx', index_col=0)
-df_nested_cv = pd.read_excel('CV_folds.xlsx', index_col=0)
-run_list=[] # additional "rf", "bart", "lasso", "cnn", "xgboost", "super", "cnn"
+df_ml = pd.read_excel('data.xlsx')
+df_nested_cv = pd.read_excel('CV_folds.xlsx')
+run_list=["cnn"] # additional "rf", "bart", "lasso", "cnn", "xgboost", "super", "cnn"
 val_sets = 5
 
-r2, X_valid, y_valid, X_strain, y_strain = cv_with_arrays(df_ml_to_array=df_ml, df_cv_to_array=df_nested_cv, val_splits=val_sets, run_list=run_list)
+cnn_r2, xgb_r2, X_valid, y_valid, X_strain, y_strain = cv_with_arrays(df_ml_to_array=df_ml, df_cv_to_array=df_nested_cv, val_splits=val_sets, run_list=run_list)
 
-median(rf_r2)
+fig = matplotlib.pyplot.scatter(y_valid, y_pred_valid_cnn)
+matplotlib.pyplot.show()
+
+r2_list = [], []
+best_iterations = []
+df_ml.iloc[:, :249]
+
+kf = KFold(n_splits=10)
+for train_fold, cv_fold in kf.split(df_ml):
+    print(train_fold)
+    print(cv_fold)
+    X_train = df_ml.iloc[:, :249].values[train_fold]
+    y_train = df_ml["hscl"].values[train_fold]
+    X_test = df_ml.iloc[:, :249].values[cv_fold]
+    y_test = df_ml["hscl"].values[cv_fold]
+
+    #history = cnn_mod.fit(X_train, y_train, batch_size=8, epochs=100,
+                          #verbose=0)
+    y_pred_test = cnn_mod.predict(X_test)
+    y_test= y_test.reshape(-1, )
+    y_pred_test = y_pred_test.reshape(-1, )
+    cnn_r2.append(rsquared(y_test, y_pred_test))
+    print(rsquared(y_test, y_pred_test))
 
 
 RANDOMSTATE = 42
