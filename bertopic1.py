@@ -818,3 +818,33 @@ topic_document_matrix_sum_diagnosen_patient.to_excel("topic_document_matrix_sum_
 path = os.path.join(base_path,sub_folder_data)
 os.chdir(path)
 topic_document_matrix_sum.to_excel("topic_document_outcome_patient_5_250.xlsx")
+
+### wähle zufällig eine zeile aus dem df aus, wenn es mehrere mit dem gleichen wert in der Spalte "patientencode" gibt.
+topic_document_matrix_sum_diagnosen_test = topic_document_matrix_sum_diagnosen.groupby('patientencode').apply(lambda x: x.sample(1))
+
+zufaelliges_transkript_diagnose=topic_document_matrix_sum_diagnosen_test.reset_index(drop=True)
+
+zufaelliges_transkript_diagnose=zufaelliges_transkript_diagnose.dropna(subset=["depr_only", "angst_only", "angst_depr", "keine", "andere"], how="any")
+
+
+def get_diagnose(row):
+    if row["depr_only"] == 1:
+        return "depr_only"
+    elif row["angst_only"] == 1:
+        return "angst_only"
+    elif row["angst_depr"] == 1:
+        return "angst_depr"
+    elif row["keine"] == 1:
+        return "keine"
+    elif row["andere"] == 1:
+        return "andere"
+    else:
+        return "NA"
+
+zufaelliges_transkript_diagnose["diagnose"] = zufaelliges_transkript_diagnose.apply(lambda x: get_diagnose(x), axis=1)
+
+zufaelliges_transkript_diagnose = zufaelliges_transkript_diagnose.drop(["depr_only", "angst_only", "angst_depr", "keine", "andere","hscl_naechste_sitzung", "srs_ges", "hscl_aktuelle_sitzung"], axis=1)
+
+path = os.path.join(base_path, sub_folder_data)
+os.chdir(path)
+zufaelliges_transkript_diagnose.to_excel("patient_diagnose_5_250_patientenebene_zufaellig.xlsx")
