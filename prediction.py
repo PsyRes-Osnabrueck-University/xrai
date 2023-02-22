@@ -261,6 +261,7 @@ def ensemble_predict(X_test):
 
 
 def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits, run_list):
+    best_algorithms = []
     array_ml, array_cv = df_ml_to_array.values, df_cv_to_array.values
     xgb_r2, xgb_params, xgb_nrmse = [], [], []
     lasso_r2, lasso_params, lasso_nrmse = [], [], []
@@ -293,6 +294,9 @@ def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits, run_list):
                "svr": svr_r2[-val_splits:], "super": super_r2[-val_splits:]}
         nrmses = {"lasso": lasso_nrmse[-val_splits:], "xgb": xgb_nrmse[-val_splits:], "rf": rf_nrmse[-val_splits:],
                   "svr": svr_nrmse[-val_splits:], "super": super_nrmse[-val_splits:]}
+        mean_nrmse = {"lasso": np.mean(lasso_nrmse[-val_splits:]), "xgb": np.mean(xgb_nrmse[-val_splits:]), "rf": np.mean(rf_nrmse[-val_splits:]),
+               "svr": np.mean(svr_nrmse[-val_splits:]), "super": np.mean(super_nrmse[-val_splits:])}
+        best_algorithms.append(sorted(mean_nrmse, key=lambda key: mean_nrmse[key])[0])
 
         for model_name in run_list:  # Alle R2s und nrmses sammeln in jeweils einem df
             out_r2[model_name] = r2s[model_name]
@@ -308,7 +312,7 @@ def cv_with_arrays(df_ml_to_array, df_cv_to_array, val_splits, run_list):
         df_r2[model_name] = r2s[model_name]
         df_nrmse[model_name] = nrmses[model_name]
 
-    return df_r2, df_nrmse, all_params, X_valid, y_valid, X_strain, y_strain, lasso_params, xgb_params, rf_params, svr_params
+    return df_r2, df_nrmse, all_params, lasso_params, xgb_params, rf_params, svr_params, best_algorithms
 
 
 # xgboost model
@@ -337,9 +341,9 @@ mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.01, 0.5, 0
 rf_params_grid = {
     'bootstrap': [True],
     'max_depth': [2, 5, 8],
-    'max_features': [2, 5, 10],
-    'min_samples_leaf': [3, 4, 5],
-    'min_samples_split': [8, 20, 50],
+    'max_features': [2, 5],
+    'min_samples_leaf': [3, 4],
+    'min_samples_split': [8, 20],
     'n_estimators': [1000]
 }
 
@@ -381,7 +385,7 @@ df_nested_cv = pd.read_excel('CV_folds.xlsx')
 run_list = ["rf", "lasso", "xgb", "svr", "super"]  # additional "rf", "bart", "lasso", "cnn", "xgb", "super", "cnn"; super geht nur wenn alle anderen drin sind.
 val_sets = 5
 
-df_r2, df_nrmse, all_params, X_valid, y_valid, X_strain, y_strain, lasso_params, xgb_params, rf_params, svr_params = cv_with_arrays(
+df_r2, df_nrmse, all_params, lasso_params, xgb_params, rf_params, svr_params, best_algorithms = cv_with_arrays(
     df_ml_to_array=df_ml, df_cv_to_array=df_nested_cv,
     val_splits=val_sets, run_list=run_list)
 
@@ -417,6 +421,8 @@ shaps = []
 r2_list = []
 nrmse_list = []
 
+best_algorithms = ["lasso", "rf", "svr", "xgb"]
+
 for col in df_nested_cv.columns.tolist():  # Jede spalte durchgehen
     print("Test fold: " + str(col))
     df_y_train = df_ml.loc[df_nested_cv[col]!=-1, [outcome]]
@@ -429,62 +435,67 @@ for col in df_nested_cv.columns.tolist():  # Jede spalte durchgehen
     y_test_a = df_y_test.values.reshape(-1,)
     feature_list = df_X_train.columns.tolist()
 
-    super_svr = GridSearchCV(estimator=svr_pipeline, param_grid=svr_params_grid, scoring="neg_mean_squared_error", cv=5, n_jobs=-1, verbose=0)
-    results = super_svr.fit(X_train_a, y_train_a)
-    print(super_svr.best_params_)
-    svr_pars = list_params(results.best_params_)
+    dict_models = {}
 
-    super_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.01, 0.5, 0.005)}, cv=5, scoring="neg_mean_squared_error", verbose=0, n_jobs=-1)
-    results = super_lasso.fit(X_train_a, y_train_a)
-    print(super_lasso.best_params_)
-    lasso_pars = list_params(results.best_params_)
+    if best_algorithms[col]=="svr" or "super":
+        super_svr = GridSearchCV(estimator=svr_pipeline, param_grid=svr_params_grid, scoring="neg_mean_squared_error", cv=5, n_jobs=-1, verbose=0)
+        results = super_svr.fit(X_train_a, y_train_a)
+        print(super_svr.best_params_)
+        svr_pars = list_params(results.best_params_)
+        mod_svr = GridSearchCV(estimator=svr_pipeline, param_grid=svr_pars, scoring="neg_mean_squared_error",
+                               cv=5, n_jobs=-1, verbose=0)
+        dict_models["svr"]=mod_svr
 
+    if best_algorithms[col]=="lasso" or "super":
+        super_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.01, 0.5, 0.005)}, cv=5, scoring="neg_mean_squared_error", verbose=0, n_jobs=-1)
+        results = super_lasso.fit(X_train_a, y_train_a)
+        print(super_lasso.best_params_)
+        lasso_pars = list_params(results.best_params_)
+        mod_lasso = GridSearchCV(lasso_pipeline, param_grid=lasso_pars, cv=5, scoring="neg_mean_squared_error",
+                                 verbose=0, n_jobs=-1)
+        dict_models["lasso"] = mod_lasso
 
-    super_rf = GridSearchCV(estimator=rf, param_grid=rf_params_grid, scoring="neg_mean_squared_error", cv=5, n_jobs=-1, verbose=0)
-    results = super_rf.fit(X_train_a, y_train_a)
-    print(super_rf.best_params_)
-    rf_pars = list_params(results.best_params_)
+    if best_algorithms[col]=="rf" or "super":
+        super_rf = GridSearchCV(estimator=rf, param_grid=rf_params_grid, scoring="neg_mean_squared_error", cv=5, n_jobs=-1, verbose=0)
+        results = super_rf.fit(X_train_a, y_train_a)
+        print(super_rf.best_params_)
+        rf_pars = list_params(results.best_params_)
+        mod_rf = GridSearchCV(estimator=rf, param_grid=rf_pars, scoring="neg_mean_squared_error", cv=5, n_jobs=-1,
+                              verbose=0)
+        dict_models["rf"] = mod_rf
 
-    xgb_params_grid = {'max_depth': [2], 'learning_rate': [0.03], 'n_estimators': [1000], 'subsample': [0.4], 'colsample_bylevel': [0.1], 'colsample_bytree': [0.1]}
-    max_depths = list(range(2, 4))
-    xgb_params_grid["max_depth"] = max_depths
-    super_xgb = GridSearchCV(estimator=xgbr, param_grid=xgb_params_grid, scoring='neg_mean_squared_error', verbose=0, n_jobs=-1, cv=2)
-    results = super_xgb.fit(X_train_a, y_train_a, verbose=0)
-    print(super_xgb.best_params_)
+    if best_algorithms[col]=="xgb" or "super":
+        xgb_params_grid = {'max_depth': [2], 'learning_rate': [0.03], 'n_estimators': [1000], 'subsample': [0.4], 'colsample_bylevel': [0.1], 'colsample_bytree': [0.1]}
+        max_depths = list(range(2, 4))
+        xgb_params_grid["max_depth"] = max_depths
+        super_xgb = GridSearchCV(estimator=xgbr, param_grid=xgb_params_grid, scoring='neg_mean_squared_error', verbose=0, n_jobs=-1, cv=2)
+        results = super_xgb.fit(X_train_a, y_train_a, verbose=0)
+        print(super_xgb.best_params_)
 
-    subsamples = np.linspace(0.1, 1, 4)
-    colsample_bytrees = np.linspace(0.1, 0.5, 4)
-    colsample_bylevel = np.linspace(0.1, 0.5, 4)
+        subsamples = np.linspace(0.1, 1, 3)
+        colsample_bytrees = np.linspace(0.1, 0.5, 3)
+        colsample_bylevel = np.linspace(0.1, 0.5, 3)
 
-    # merge into full param dicts
-    params_dict = xgb_params_grid
-    params_dict["subsample"] = subsamples
-    params_dict["colsample_bytree"] = colsample_bytrees
-    params_dict["colsample_bylevel"] = colsample_bylevel
-    super_xgb = GridSearchCV(estimator=xgbr, param_grid=params_dict, scoring='neg_mean_squared_error', verbose=0, n_jobs=-1, cv=5)
+        # merge into full param dicts
+        params_dict = xgb_params_grid
+        params_dict["subsample"] = subsamples
+        params_dict["colsample_bytree"] = colsample_bytrees
+        params_dict["colsample_bylevel"] = colsample_bylevel
+        super_xgb = GridSearchCV(estimator=xgbr, param_grid=params_dict, scoring='neg_mean_squared_error', verbose=0, n_jobs=-1, cv=5)
 
-    results = super_xgb.fit(X_train_a, y_train_a, verbose=0)
-    print(super_xgb.best_params_)
-    learning_rates = np.logspace(-3, -0.7, 5)
-    params_dict = list_params(results.best_params_)
-    params_dict["learning_rate"] = learning_rates
+        results = super_xgb.fit(X_train_a, y_train_a, verbose=0)
+        print(super_xgb.best_params_)
+        learning_rates = np.logspace(-3, -0.7, 3)
+        params_dict = list_params(results.best_params_)
+        params_dict["learning_rate"] = learning_rates
 
-    super_xgb = GridSearchCV(estimator=xgbr, param_grid=params_dict, scoring='neg_mean_squared_error', verbose=0, n_jobs=-1, cv=5)
-    results = super_xgb.fit(X_train_a, y_train_a, verbose=0)
-    print(results.best_params_)
-    xgb_pars = list_params(results.best_params_)
-    calculate_fit()
-
-
-    mod_xgb = GridSearchCV(estimator=xgbr, param_grid=xgb_pars, scoring='neg_mean_squared_error', verbose=0,
-                           n_jobs=-1, cv=5)
-    mod_lasso = GridSearchCV(lasso_pipeline, param_grid=lasso_pars, cv=5, scoring="neg_mean_squared_error",
-                             verbose=0, n_jobs=-1)
-    mod_rf = GridSearchCV(estimator=rf, param_grid=rf_pars, scoring="neg_mean_squared_error", cv=5, n_jobs=-1,
-                          verbose=0)
-    mod_svr = GridSearchCV(estimator=svr_pipeline, param_grid=svr_pars, scoring="neg_mean_squared_error",
-                           cv=5, n_jobs=-1, verbose=0)
-    dict_models = {"xgb": mod_xgb, "lasso": mod_lasso, "rf": mod_rf, "svr": mod_svr}
+        super_xgb = GridSearchCV(estimator=xgbr, param_grid=params_dict, scoring='neg_mean_squared_error', verbose=0, n_jobs=-1, cv=5)
+        results = super_xgb.fit(X_train_a, y_train_a, verbose=0)
+        print(results.best_params_)
+        xgb_pars = list_params(results.best_params_)
+        mod_xgb = GridSearchCV(estimator=xgbr, param_grid=xgb_pars, scoring='neg_mean_squared_error', verbose=0,
+                               n_jobs=-1, cv=5)
+        dict_models["xgb"] = mod_xgb
 
     yhat_train, yhat_test = [], []
     for model in dict_models:
@@ -495,17 +506,23 @@ for col in df_nested_cv.columns.tolist():  # Jede spalte durchgehen
         yhat = dict_models[model].predict(X_test_a)
         yhat = yhat.reshape(-1,1)
         yhat_test.append(yhat)
-    meta_X_train = np.hstack(yhat_train)
-    meta_X_test= np.hstack(yhat_test)
 
-    mod_meta.fit(meta_X_train, y_train_a)
-    pred = mod_meta.predict(meta_X_test)
-    pred = pred.reshape(-1,)
+    if best_algorithms[col]=="super":
+        meta_X_train = np.hstack(yhat_train)
+        meta_X_test= np.hstack(yhat_test)
+        mod_meta.fit(meta_X_train, y_train_a)
+        pred = mod_meta.predict(meta_X_test)
+        pred = pred.reshape(-1, )
+    else:
+        pred = yhat_test[0]
+
 
     r2_list.append(rsquared(y_test_a, pred))
     nrmse_list.append(metrics.mean_squared_error(y_test_a, pred, squared=False) / statistics.stdev(y_test_a))
-    print("Ensemble: " + str(metrics.mean_squared_error(y_test_a, pred, squared=False) / statistics.stdev(y_test_a)))
-    explainer = shap.explainers.Permutation(ensemble_predict, masker=shap.sample(X_train_a, 100), max_evals=501)
+    print("Auswahl: " + best_algorithms[col] + ": " + str(metrics.mean_squared_error(y_test_a, pred, squared=False) / statistics.stdev(y_test_a)))
+
+    if best_algorithms[col]=="super": explainer = shap.explainers.Permutation(ensemble_predict, masker=shap.sample(X_train_a, 100), max_evals=501)
+    else: explainer = shap.explainers.Permutation(dict_models[best_algorithms[col]], masker=shap.sample(X_train_a, 100), max_evals=501)
     shaps.append(explainer(X_test_a))
 
 
