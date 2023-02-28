@@ -27,8 +27,9 @@ shap.initjs()
 base_path = "C:/Users/JLU-SU/JLUbox/Transkriptanalysen (Christopher Lalk)/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
 sub_folder_transkripte = "data/transkripte"
-sub_folder_Patient = "data/Patient"
-sub_folder_output = "data/Patient/hscl_nächste_sitzung" # oder "srs" oder "hscl_nächste_sitzung
+sub_folder_Patient = "data/Patient_classed"
+sub_folder_output = "data/Patient/hscl_aktuell" # oder "srs" oder "hscl_nächste_sitzung
+
 
 def cor(x, y):
     """ Return R^2 where x and y are array-like."""
@@ -110,9 +111,9 @@ def find_params_xgb(X_valid, X_strain, y_valid, y_strain, xgb_params, xgb_r2, xg
     results = clf.fit(X_strain, y_strain, verbose=0)
 
 
-    subsamples = np.linspace(0.1, 1, 2)
-    colsample_bytrees = np.linspace(0.1, 0.5, 2)
-    colsample_bylevel = np.linspace(0.1, 0.5, 2)
+    subsamples = np.linspace(0.05, 1, 3)
+    colsample_bytrees = np.linspace(0.05, 0.5, 3)
+    colsample_bylevel = np.linspace(0.05, 0.5, 3)
 
     # merge into full param dicts
 
@@ -375,12 +376,12 @@ mod_meta = GridSearchCV(estimator=lasso_pipeline, param_grid={"model__alpha": np
 
 
 # Bei fertigem Datansatz AB HIER!!! --------------------------------------------------------------------------------------------------
-outcome = "hscl_naechste_sitzung"  # Alternativ "srs_ges"
+outcome = "hscl_aktuelle_sitzung"  # Alternativ "srs_ges"
 path = os.path.join(base_path, sub_folder_Patient)
 os.chdir(path)
 print(path)
-df_ml = pd.read_excel('data_hscl_next.xlsx')
-df_nested_cv = pd.read_excel('CV_folds_hscl_next.xlsx')
+df_ml = pd.read_excel('data_hscl.xlsx')
+df_nested_cv = pd.read_excel('hscl_cv.xlsx')
 run_list = ["rf", "lasso", "xgb", "svr", "super"]  # additional "rf", "bart", "lasso", "cnn", "xgb", "super", "cnn"; super geht nur wenn alle anderen drin sind.
 val_sets = 5
 
@@ -566,14 +567,14 @@ df_shap_values_new.to_excel('SHAP-IMPORTANCE.xlsx')
 
 
 # MUSS für jeden Datensatz nur einmal gemacht werden -------------------------------------------------------------------------
-path = os.path.join(base_path, sub_folder_data)
+path = os.path.join(base_path, sub_folder_Patient)
 os.chdir(path)
 print(path)
-df = pd.read_excel('patient_diagnose_5_250_patientenebene_zufaellig.xlsx', index_col=0)
+df = pd.read_excel('topic_document_outcome_patient_5_250_class.xlsx', index_col=0)
+outcome = "hscl_aktuelle_sitzung"  # Alternativ "srs_ges" oder "hscl_aktuelle_sitzung"
+
 
 test_sets, val_sets = 10, 5
-outcome = "hscl_naechste_sitzung"  # Alternativ "srs_ges"
-
 df_ml, df_nested_cv = split_preparation(test_splits=test_sets, val_splits=val_sets, df=df,
                                         outcome=outcome, next=True)  # Alternativ "srs_ges"
 df_ml = df_ml.iloc[:, 1:]  # erste Spalte löschen (session-Variable ist nicht ml-geeignet)
@@ -581,3 +582,32 @@ df_ml = df_ml.iloc[:, 1:]  # erste Spalte löschen (session-Variable ist nicht m
 df_ml.to_excel("data_hscl_next.xlsx", index=False)
 df_nested_cv.to_excel("CV_folds_hscl_next.xlsx", index=False)
 
+############# target auswählen für classed data only
+outcome = "hscl_aktuelle_sitzung"  # Alternativ "srs_ges" oder "hscl_naechste_sitzung"
+path = os.path.join(base_path, sub_folder_Patient)
+os.chdir(path)
+print(path)
+df = pd.read_excel('topic_document_outcome_patient_5_250_class.xlsx', index_col=0)
+df_nested_cv = pd.read_excel('CV_class.xlsx')
+df_nested_cv = df_nested_cv.iloc[:, 1:]
+
+y = df[[outcome]]  # Outcome auswählen
+for column in df.columns:
+    if "249" in column[0:4]: end_col = column  # letztes Topic = 249_... auswählen
+next = False
+if next==True:
+    hscl_akt = df["hscl_aktuelle_sitzung"]
+    df = df.loc[:, :end_col]  # Response-Variablen entfernen
+    df["hscl_aktuelle_sitzung"] = hscl_akt
+else:     df = df.loc[:, :end_col]  # Response-Variablen entfernen
+
+df[outcome] = y  # einzelne Response-Variable hinzufügen
+df = df.np.concat(df_nested_cv)
+df = pd.concat([df, df_nested_cv], axis=1)
+
+df = df.dropna()  # Missings fliegen raus!
+df = df.iloc[:, 2:]
+df_cv = df.iloc[:, -10:]
+df_ml = df.iloc[:, :-11]
+df_ml.to_excel("data_hscl.xlsx", index=False)
+df_cv.to_excel("hscl_cv.xlsx", index=False)
