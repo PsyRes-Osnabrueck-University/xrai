@@ -27,9 +27,11 @@ shap.initjs()
 base_path = "C:/Users/JLU-SU/JLUbox/Transkriptanalysen (Christopher Lalk)/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
 sub_folder_transkripte = "data/transkripte"
-sub_folder_Patient = "data/Patient_classed"
-sub_folder_output = "data/Patient/hscl_aktuell" # oder "srs" oder "hscl_nächste_sitzung
+sub_folder_data = "data"
+sub_folder_Patient = "data/Patient_classed/"
+sub_folder_Therapeut = "data/Therapeut/"
 
+sub_folder_output = "data/Therapeut/srs" # oder "srs" oder "hscl_nächste_sitzung
 
 def cor(x, y):
     """ Return R^2 where x and y are array-like."""
@@ -60,9 +62,13 @@ def split_preparation(test_splits, val_splits, df, outcome, next=False):
     for column in df.columns:
         if "249" in column[0:3]: end_col = column  # letztes Topic = 249_... auswählen
 
-    if next==True: hscl_akt = df["hscl_aktuelle_sitzung"]
-    df = df.loc[:, :end_col]  # Response-Variablen entfernen
-    df["hscl_aktuelle_sitzung"] = hscl_akt
+    if next==True:
+        hscl_akt = df["hscl_aktuelle_sitzung"]
+        df = df.loc[:, :end_col]  # Response-Variablen entfernen
+        df["hscl_aktuelle_sitzung"] = hscl_akt
+    else:
+        df = df.loc[:, :end_col]  # Response-Variablen entfernen
+
     df[outcome] = y  # einzelne Response-Variable hinzufügen
 
     df = df.dropna()  # Missings fliegen raus!
@@ -335,12 +341,12 @@ lasso_pipeline = Pipeline([
 ])
 nur_lasso = Lasso()
 
-mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 0.7, 0.005)}, cv=5, scoring="neg_mean_squared_error", verbose=0, n_jobs=-1)
+mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.1, 0.7, 0.005)}, cv=5, scoring="neg_mean_squared_error", verbose=0, n_jobs=-1)
 
 # Random Forest Model
 rf_params_grid = {
     'bootstrap': [True],
-    'max_depth': [15, 20],
+    'max_depth': [5, 10],
     'max_features': [20, 50],
     'min_samples_leaf': [2, 3],
     'min_samples_split': [2, 4],
@@ -371,17 +377,17 @@ mod_svr = GridSearchCV(estimator=svr_pipeline, param_grid=svr_params_grid, scori
 
 # Ensemble:
 
-mod_meta = GridSearchCV(estimator=lasso_pipeline, param_grid={"model__alpha": np.arange(0.001, 0.5, 0.005)}, cv=10,
+mod_meta = GridSearchCV(estimator=lasso_pipeline, param_grid={"model__alpha": np.arange(0.01, 0.5, 0.005)}, cv=10,
                             scoring="neg_mean_squared_error", verbose=0, n_jobs=-1)
 
 
 # Bei fertigem Datansatz AB HIER!!! --------------------------------------------------------------------------------------------------
-outcome = "hscl_aktuelle_sitzung"  # Alternativ "srs_ges"
-path = os.path.join(base_path, sub_folder_Patient)
+outcome = "srs_ges"  # Alternativ "srs_ges"
+path = os.path.join(base_path, sub_folder_Therapeut)
 os.chdir(path)
 print(path)
-df_ml = pd.read_excel('data_hscl.xlsx')
-df_nested_cv = pd.read_excel('hscl_cv.xlsx')
+df_ml = pd.read_excel('data_srs.xlsx')
+df_nested_cv = pd.read_excel('cv_folds_srs.xlsx')
 run_list = ["rf", "lasso", "xgb", "svr", "super"]  # additional "rf", "bart", "lasso", "cnn", "xgb", "super", "cnn"; super geht nur wenn alle anderen drin sind.
 val_sets = 5
 
@@ -446,7 +452,7 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
         dict_models["svr"]=mod_svr
 
     if best_algorithms[i]=="lasso" or best_algorithms[i]=="super":
-        super_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.001, 0.3, 0.005)}, cv=5, scoring="neg_mean_squared_error", verbose=0, n_jobs=-1)
+        super_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.1, 0.7, 0.005)}, cv=5, scoring="neg_mean_squared_error", verbose=0, n_jobs=-1)
         results = super_lasso.fit(X_train_a, y_train_a)
         print(super_lasso.best_params_)
         lasso_pars = list_params(results.best_params_)
@@ -471,9 +477,9 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
         results = super_xgb.fit(X_train_a, y_train_a, verbose=0)
         print(super_xgb.best_params_)
 
-        subsamples = np.linspace(0.1, 1, 3)
-        colsample_bytrees = np.linspace(0.1, 0.7, 3)
-        colsample_bylevel = np.linspace(0.1, 0.7, 3)
+        subsamples = np.linspace(0.05, 1, 3)
+        colsample_bytrees = np.linspace(0.05, 0.5, 3)
+        colsample_bylevel = np.linspace(0.05, 0.5, 3)
 
         # merge into full param dicts
         params_dict = xgb_params_grid
@@ -567,29 +573,33 @@ df_shap_values_new.to_excel('SHAP-IMPORTANCE.xlsx')
 
 
 # MUSS für jeden Datensatz nur einmal gemacht werden -------------------------------------------------------------------------
-path = os.path.join(base_path, sub_folder_Patient)
+path = os.path.join(base_path, sub_folder_data)
 os.chdir(path)
 print(path)
-df = pd.read_excel('topic_document_outcome_patient_5_250_class.xlsx', index_col=0)
-outcome = "hscl_aktuelle_sitzung"  # Alternativ "srs_ges" oder "hscl_aktuelle_sitzung"
+df = pd.read_excel('topic_document_outcome_therapeut_5_250.xlsx', index_col=0)
+outcome = "srs_ges"  # Alternativ "srs_ges" oder "hscl_aktuelle_sitzung"
 
 
 test_sets, val_sets = 10, 5
 df_ml, df_nested_cv = split_preparation(test_splits=test_sets, val_splits=val_sets, df=df,
-                                        outcome=outcome, next=True)  # Alternativ "srs_ges"
+                                        outcome=outcome, next=False)  # Alternativ "srs_ges"
 df_ml = df_ml.iloc[:, 1:]  # erste Spalte löschen (session-Variable ist nicht ml-geeignet)
 
-df_ml.to_excel("data_hscl_next.xlsx", index=False)
-df_nested_cv.to_excel("CV_folds_hscl_next.xlsx", index=False)
+path = os.path.join(base_path, sub_folder_Therapeut)
+os.chdir(path)
+print(path)
+df_ml.to_excel("data_srs.xlsx", index=False)
+df_nested_cv.to_excel("CV_folds_srs.xlsx", index=False)
 
 ############# target auswählen für classed data only
-outcome = "hscl_aktuelle_sitzung"  # Alternativ "srs_ges" oder "hscl_naechste_sitzung"
+outcome = "srs_ges"  # Alternativ "srs_ges" oder "hscl_naechste_sitzung"
 path = os.path.join(base_path, sub_folder_Patient)
 os.chdir(path)
 print(path)
 df = pd.read_excel('topic_document_outcome_patient_5_250_class.xlsx', index_col=0)
-df_nested_cv = pd.read_excel('CV_class.xlsx')
+df_nested_cv = pd.read_excel('cv_class.xlsx')
 df_nested_cv = df_nested_cv.iloc[:, 1:]
+
 
 y = df[[outcome]]  # Outcome auswählen
 for column in df.columns:
@@ -602,12 +612,14 @@ if next==True:
 else:     df = df.loc[:, :end_col]  # Response-Variablen entfernen
 
 df[outcome] = y  # einzelne Response-Variable hinzufügen
-df = df.np.concat(df_nested_cv)
 df = pd.concat([df, df_nested_cv], axis=1)
 
 df = df.dropna()  # Missings fliegen raus!
 df = df.iloc[:, 2:]
 df_cv = df.iloc[:, -10:]
-df_ml = df.iloc[:, :-11]
-df_ml.to_excel("data_hscl.xlsx", index=False)
-df_cv.to_excel("hscl_cv.xlsx", index=False)
+df_ml = df.iloc[:, :-10]
+
+path = os.path.join(base_path, sub_folder_output)
+os.chdir(path)
+df_ml.to_excel("data_srs.xlsx", index=False)
+df_cv.to_excel("srs_cv.xlsx", index=False)
