@@ -852,3 +852,38 @@ zufaelliges_transkript_diagnose = zufaelliges_transkript_diagnose.drop(["depr_on
 path = os.path.join(base_path, sub_folder_data)
 os.chdir(path)
 zufaelliges_transkript_diagnose.to_excel("patient_diagnose_5_250_patientenebene_zufaellig.xlsx")
+
+
+
+
+### erstelle excel tabelle mit allen topics und allen assoziierten wörtern
+a =model.topic_representations_
+df = pd.DataFrame.from_dict(a, orient='index')
+# Funktion zum Entfernen von Klammern, Kommas und Zahlen
+def remove_chars(s):
+    return re.sub(r'\([^)]*\)', '', s).replace(',', '').replace('\d+', '')
+
+# Anwenden der Funktion auf alle Zellen des DataFrames
+def remove_chars(x):
+    if isinstance(x, str):
+        return re.sub(r'\(.*?\)|\d+', '', x).strip()
+    else:
+        return x
+
+df = df.applymap(remove_chars)
+
+df = df.applymap(lambda x: str(x).replace('(', '').replace(')', ''))
+
+import re
+
+def remove_chars(entry):
+    """
+    Funktion, die alle Klammern, Kommas und Zahlen aus einem String entfernt.
+    """
+    return re.sub(r"[\(\),\d]+", "", entry)
+
+df = df.applymap(remove_chars)
+
+df = df.replace('\.', '', regex=True)
+
+df.to_excel("topics_therapeut_vollstaendig.xlsx")
