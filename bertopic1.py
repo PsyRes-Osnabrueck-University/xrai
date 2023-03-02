@@ -819,6 +819,10 @@ path = os.path.join(base_path,sub_folder_data)
 os.chdir(path)
 topic_document_matrix_sum.to_excel("topic_document_outcome_patient_5_250.xlsx")
 
+
+### wähle Transkripte bis zur 10. Sitzung aus (sollten 260 Sitzungen sein)
+df = topic_document_matrix_sum_diagnosen[topic_document_matrix_sum_diagnosen['session'].str[-2:] <= '10']
+
 ### wähle zufällig eine zeile aus dem df aus, wenn es mehrere mit dem gleichen wert in der Spalte "patientencode" gibt.
 topic_document_matrix_sum_diagnosen_test = topic_document_matrix_sum_diagnosen.groupby('patientencode').apply(lambda x: x.sample(1))
 
