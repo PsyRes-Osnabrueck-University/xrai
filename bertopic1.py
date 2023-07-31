@@ -4,14 +4,14 @@ import os
 import json
 import pyreadstat
 # Create path and sub folders
-base_path = "C:/Users/Christopher/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
+base_path = "C:/Users/clalk/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
 sub_folder_processing = "data/processing"
 sub_folder_transkripte = "data/Transkripte"
 sub_folder_data = "data"
 sub_folder_output = "output"
 
 # base_path = "C:/Users/Christopher/PycharmProjects/BerTopic/"
-base_path_pycharm = "C:/Users/JLU-SU/PycharmProjects/BerTopic/"
+base_path_pycharm = "C:/Users/clalk/PycharmProjects/BerTopic/"
 
 import nltk
 from nltk.corpus import stopwords
@@ -22,6 +22,7 @@ import requests
 import tensorflow as tf
 import time
 import ast
+from sentence_transformers import SentenceTransformer, util
 
 from sklearn.feature_extraction.text import CountVectorizer
 from bertopic.vectorizers import ClassTfidfTransformer
@@ -35,7 +36,7 @@ import torch.nn.functional as F
 hannover = ht.HanoverTagger('morphmodel_ger.pgz')
 
 import sys
-sys.path.insert(0,r'C:\Users\Christopher\PycharmProjects\Bertopic\TopicTuner')
+sys.path.insert(0,r'C:\Users\clalk\PycharmProjects\Bertopic\TopicTuner')
 from topictuner import TopicModelTuner as TMT
 from hdbscan import HDBSCAN
 
@@ -176,6 +177,23 @@ embeddings = model.encode(sentences)
 end_time = time.time()
 interval_time = end_time - begin_time
 print(interval_time)
+
+from sentence_transformers import SentenceTransformer, util
+model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
+
+vergleichssatz = "Ich bin schlecht"
+print(vergleichssatz)
+vergleich_embedding = model.encode(vergleichssatz)
+dict_sim = []
+df_similarity = pd.DataFrame(columns=['Sentence', 'Similarity'])
+for i in range(100):
+    for sentence in sentences[i]:
+        embedding = model.encode(sentence)
+        similarity = util.cos_sim(vergleich_embedding, embedding)
+        new_row = {'Similarity': similarity, 'Paragraph': sentence}
+        dict_sim.append(new_row)
+        print(str(sentence) + ":" + str(similarity))
+df_cat = pd.DataFrame.from_dict(dict_sim)
 
 
 ####### Topic Tuning ausklammern
