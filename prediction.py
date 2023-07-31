@@ -51,7 +51,6 @@ def ensemble_predict(X_test):
         if model != "gpb":
             yhat_list.append(dict_models[model].predict(X_test).reshape(-1,1))
         else:
-            group_test
             group_test_stacked = pd.concat([group_test]*2*X_test_a.shape[1], ignore_index=True)
             pred = bst.predict(data=X_test, group_data_pred=group_test,
                                predict_var=True, pred_latent=False)
