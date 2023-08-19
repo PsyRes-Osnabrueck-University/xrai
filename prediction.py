@@ -3,6 +3,7 @@ import scipy.stats
 import statistics
 import numpy as np
 import pandas as pd
+import xlsxwriter
 import matplotlib.pyplot as plt
 from typing import Tuple
 from sklearn.preprocessing import StandardScaler
@@ -16,6 +17,7 @@ from sklearn.svm import SVR
 from sklearn.exceptions import ConvergenceWarning
 import warnings
 import cv_fold
+import nexted_cv_pr
 import gpboost as gpb
 
 
@@ -28,25 +30,27 @@ from sklearn import metrics
 import xgboost
 import shap
 import os
-# some_file.py
 import sys
-sys.path.append('C:/Users/clalk/PycharmProjects/BerTopic/shap/shap')
 
 base_path = "C:/Users/clalk/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
 #base_path = r"C:\Users\clalk\JLUbox\Transkriptanalysen\3 N-GRAMME\Analysen"
 
 sub_folder_Patient = "data/Patient_classed/hscl_aktuell_test"
 #sub_folder_output = "data/Patient/hscl_diff" # oder "srs" oder "hscl_nächste_sitzung
-sub_folder_output = "data/Patient/hscl_aktuell_test"
+sub_folder_output = "data/Patient_classed/hscl_aktuell_test"
 
 scorer = "r2" # scorer = "neg_mean_squared_error
 n_gramm_folder = r"C:\Users\clalk\JLUbox\Transkriptanalysen\3 N-GRAMME\Analysen"
 n_gramm_folder_out = r"C:\Users\clalk\JLUbox\Transkriptanalysen\3 N-GRAMME\Analysen\out_lag_5"
 
+Einsamkeit_folder = r"C:\Users\clalk\JLUbox\Transkriptanalysen\4 EINSAMKEIT"
+Einsamkeit_folder_out = r"C:\Users\clalk\JLUbox\Transkriptanalysen\4 EINSAMKEIT\out"
+
+
 def ensemble_predict(X_test):
     yhat_list = []
     Yyy.append(X_test)
-    print(X_test)
+    #print(X_test)
     for model in dict_models:
         if model != "gpb":
             yhat_list.append(dict_models[model].predict(X_test).reshape(-1,1))
@@ -61,44 +65,6 @@ def ensemble_predict(X_test):
     y_pred = y_pred.reshape(-1,1)
     return y_pred
 
-
-def split_preparation(test_splits, val_splits, df, outcome, next=False):
-    y = df[[outcome]]  # Outcome auswählen
-    for column in df.columns:
-        if "249" in column[0:3]: end_col = column  # letztes Topic = 249_... auswählen
-        if "ppp" in column: end_col = column
-
-    if next==True: hscl_akt = df["hscl_aktuelle_sitzung"]
-    df = df.loc[:, :end_col]  # Response-Variablen entfernen
-    df[outcome] = y  # einzelne Response-Variable hinzufügen
-
-    df = df.dropna()  # Missings fliegen raus!
-
-    test_kf = RepeatedKFold(n_splits=test_splits, n_repeats=1, random_state=42)
-    val_kf = RepeatedKFold(n_splits=val_splits, n_repeats=1, random_state=42)
-
-    for outer_fold in range(0,test_splits):  # hinten dran kommt eine Variable für die folds. Darin steht in jedem Fold, wann man valid-set ist.
-        df["fold_" + str(outer_fold)] = -1
-    columns = df.columns.tolist()
-
-    a_data = df.values
-    print(test_kf.split(a_data))
-    for outer_fold, (train_index, test_index) in enumerate(test_kf.split(a_data)):  #
-        a_train, a_test = a_data[train_index], a_data[test_index]
-        print(outer_fold)
-        inner_fold = 0
-        for strain_index, valid_index in val_kf.split(a_train):
-            print(inner_fold)
-            a_strain, a_valid = a_train[strain_index], a_train[valid_index]
-            df_valid = pd.DataFrame(a_valid, columns=columns)
-            session_list = df_valid["session"].tolist()
-            df.loc[df['session'].isin(session_list), "fold_" + str(
-                outer_fold)] = inner_fold  # folds benennen, soweit eine row im valid-set ist
-            inner_fold += 1
-    df_cv = df.loc[:, "fold_0":]
-    df_ml = df.loc[:, :outcome]
-    # df_ml.insert(0, column, value)
-    return df_ml, df_cv
 
 
 # Bei fertigem Datansatz AB HIER!!! --------------------------------------------------------------------------------------------------
@@ -210,14 +176,17 @@ def cor(x, y):
 
     slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
     return r_value
+def custom_masker(mask, x):
+    return (x * mask).reshape(1,len(x)) # in this simple example we just zero out the features we are masking
+
 
 ############ LÖSCHEN!!!!!!
 run_list = ["lasso", "svr"]
-feature_selection=False
+feature_selection=True
 last_feature = df_ml.columns.tolist()[-245]
 ################################################################
 
-
+best_algorithms = ["super", "super"]
 # last_feature = df_ml.columns.tolist()[-2]
 shaps = []
 r_list = []
@@ -369,10 +338,11 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
 
     # hier wird der SHAP-Explainer aufgerufen, um die jeweiligen ML-Modelle zu erklären:
 
-    if best_algorithms[i]=="super": explainer = shap.explainers.Permutation(ensemble_predict, masker=shap.sample(X_train_a, 100), seed=1234, max_evals=500)
+    if best_algorithms[i]=="super": explainer = shap.explainers.Permutation(ensemble_predict, masker=custom_masker, seed=1234, max_evals=500)
     elif best_algorithms[i]=="gpb": explainer = shap.explainers.Permutation(bst, masker=shap.sample(X_train_a, 100), max_evals=503)
     else: explainer = shap.explainers.Permutation(dict_models[best_algorithms[i]].predict, masker=shap.sample(X_train_a, 100), max_evals=503)
     shaps.append(explainer(X_test_a))
+    break
 
 # Save rs and Nrmses
 df_results = pd.DataFrame(
@@ -382,10 +352,10 @@ df_results.to_excel('Results.xlsx')
 
 
 
-sh_values, bs_values, sh_data = None, None, None
-#sh_values = shaps[0].values
-#bs_values = shaps[0].base_values
-#sh_data = shaps[0].data
+sh_values, bs_values, sh_data = [], [], []
+sh_values = shaps[0].values
+bs_values = shaps[0].base_values
+sh_data = shaps[0].data
 for i in range(len(shaps)):
     sh_values = np.concatenate((sh_values, np.array(shaps[i].values)), axis=0)
     bs_values = np.concatenate((bs_values, np.array(shaps[i].base_values)), axis=0)
@@ -430,56 +400,46 @@ df_shap_values_new["percent_shap_value"] = df_shap_values_new["SHAP-value"] / df
     "SHAP-value"].sum() * 100
 df_shap_values_new.to_excel('SHAP-IMPORTANCE.xlsx')
 
-# MUSS für jeden Datensatz nur einmal gemacht werden -------------------------------------------------------------------------
+# MUSS für jeden Datensatz nur einmal gemacht werden.
+# Für CLASSSED DAtensätze: .../JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/creating_classed_dfs.R
 #path = os.path.join(base_path, sub_folder_Patient)
-path = n_gramm_folder
+path = Einsamkeit_folder
 os.chdir(path)
 print(path)
 
-df = pd.read_excel('hscl5.xlsx', index_col=1)
-outcome = "hscl_nächste_sitzung"  # Alternativ "srs_ges" oder "hscl_aktuelle_sitzung"
+df = pd.read_excel('topic_modeling_outcome_patient.xlsx', index_col=0)
+outcome = "hscl_naechste_sitzung"  # Welcher OUtcome soll vorhergesagt werden?
+outcome_list = ["hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges"] # Welche Outcomes sind enthalten?
+outcome_to_features = ["hscl_aktuelle_sitzung"] # Welche Outcomes sollen Features werden? Z.B. wenn ich hscl_aktuell
+                        # als Prädiktor habe für hscl_lag_5
+'''
+Wir brauchen hier einen Datensatz, der als erstes die Variable Class enthält.
+Diese beinhaltet den Patientencode. Danach kommt die Variable session. Diese 
+beinhaltet die Sitzungsnummer. Danach kommen die Features. Diese können beliebig benannt sein. 
+Anschließend kommen die Targets, also die abhängigen Variablen. Diese werden in die Liste
+outcome_list eingetragen. 
+'''
+
+###### Session und Class anpassen
+for line in range(len(df)):
+    df.loc[line, "session"] = df.loc[line, "session"].partition("_")[2]
+
+for line in range(len(df)):
+    df.loc[line, "Class"] = df.loc[line, "Class"].partition("_")[0]
+
+################################
 
 
-test_sets, val_sets = 10, 5
-df_ml, df_nested_cv = split_preparation(test_splits=test_sets, val_splits=val_sets, df=df,
-                                        outcome=outcome, next=False)  # Alternativ "srs_ges"
-df_ml = df_ml.iloc[:, 1:]  # erste Spalte löschen (session-Variable ist nicht ml-geeignet)
+test_sets, val_sets = 10, 5 # Anzahl an Test sets für outer cross-validation und Validation sets für inner cv
+df_id, df_ml, df_nested_cv = nested_cv_preparation.split_preparation(test_splits=test_sets, val_splits=val_sets, df=df,
+                                        outcome=outcome, outcome_list = outcome_list,
+                                        outcome_to_features = outcome_to_features)  # Alternativ "srs_ges"
 
-df_ml.to_excel("hscl5_ready.xlsx", index=False)
-df_nested_cv.to_excel("CV_folds_hscl5.xlsx", index=False)
-
-############# target auswählen für classed data only
-outcome = "hscl_aktuelle_sitzung"  # Alternativ "srs_ges" oder "hscl_naechste_sitzung"
-path = os.path.join(base_path, sub_folder_Patient)
-os.chdir(path)
-print(path)
-df = pd.read_excel('topic_document_outcome_patient_5_250_class.xlsx', index_col=0)
-df_nested_cv = pd.read_excel('CV_class.xlsx')
-
-y = df[[outcome]]  # Outcome auswählen
-for column in df.columns:
-    if "249" in column[0:4]: end_col = column  # letztes Topic = 249_... auswählen
-next = False
-if next==True:
-    hscl_akt = df["hscl_aktuelle_sitzung"]
-    df = df.loc[:, :end_col]  # Response-Variablen entfernen
-    df["hscl_aktuelle_sitzung"] = hscl_akt
-else:     df = df.loc[:, :end_col]  # Response-Variablen entfernen
-
-df[outcome] = y  # einzelne Response-Variable hinzufügen
-df = pd.concat([df, df_nested_cv], axis=1)
-
-df = df.dropna()  # Missings fliegen raus!
-
-group = df.loc[:,"Class"]
-gp_model = gpb.GPModel(group_data=group, likelihood="gaussian")
-
-df = df.iloc[:, 2:]
-df_cv = df.iloc[:, -10:]
-df_ml = df.iloc[:, :-10]
-
-df_ml.to_excel("data_hscl.xlsx", index=False)
-df_cv.to_excel("hscl_cv.xlsx", index=False)
-group.to_excel("class.xlsx", index=False)
-
-
+# File Benennung: Project (z.B. tm für topic modeling) _ Patient oder Therapeut oder Both _ classed oder nicht _ outcome (zB. hscl1 für hscl lag 1).
+writer = pd.ExcelWriter("tm_patient_classed_hscl1.xlsx", engine="xlsxwriter")
+# Write each dataframe to a different worksheet.
+df_id.to_excel(writer, sheet_name="ID", index=False)
+df_ml.to_excel(writer, sheet_name="ML", index=False)
+df_nested_cv.to_excel(writer, sheet_name="CV", index=False)
+writer.close()
+# Close the Pandas Excel writer and output the Excel file.
