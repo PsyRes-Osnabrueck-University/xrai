@@ -92,7 +92,7 @@ def clean_text(text):
 
     return text
 
-# open("stop_words_short.txt")
+# open("stop_words_short.txt") Hier werden sehr basic Stopwords entfernt. Gerne aber vorher mal die Liste prüfen, ob das so in Ordnung ist. Das File liegt im Ordner Processing.
 path = os.path.join(base_path,sub_folder_processing)
 os.chdir(path)
 os.listdir()
@@ -107,7 +107,7 @@ os.chdir(path)
 print(file_list)
 
 # Dataframe mit Transkripten erstellen
-min_num_words = 5
+min_num_words = 5 # Ein Minimum Word Count war relevant für das Topic Modeling, eigentlich sollte das aber auf 0 gesetzt sein!!!
 df_fin = pd.DataFrame(columns=['File', 'Therapist_no', 'Patient_no', 'Session', 'Therapist', 'Patient'])
 i=0
 for filename in file_list:
