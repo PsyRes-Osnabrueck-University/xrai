@@ -7,11 +7,10 @@ from sklearn.preprocessing import StandardScaler
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, GroupKFold, StratifiedGroupKFold
 from sklearn.linear_model import Lasso, ElasticNet
 from sklearn.svm import SVR
-
-
+from merf import MERF
 import gpboost as gpb
 
 
@@ -20,28 +19,16 @@ from sklearn import metrics
 import xgboost
 import shap
 import os
+from sklearn.metrics import make_scorer
 
+def cor(x, y):
+    """ Return R where x and y are array-like."""
+    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
+    return r_value
 
-# xgboost model
-xgb_params_grid = {'max_depth': [2],
-                   'learning_rate': [0.03],
-                   'n_estimators': [1000],
-                   'subsample': [0.4],
-                   'colsample_bylevel': [0.1],
-                   'colsample_bytree': [0.1]}  # Muss evtl. weg!'early_stopping_rounds': [500]
-
-xgbr = xgboost.XGBRegressor(seed=20, objective='reg:squarederror', booster='gbtree')
-
-mod_xgb = GridSearchCV(estimator=xgbr, param_grid=xgb_params_grid, scoring="r2", verbose=0, n_jobs=-1, cv=5)
-
-
-# Lasso Model
-lasso_pipeline = Pipeline([
-    ("scaler", StandardScaler()),
-    ('model', Lasso(random_state=42))
-])
-
-mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 0.7, 0.005)}, cv=5, scoring="r2", verbose=0, n_jobs=-1)
+r_scorer = make_scorer(cor, greater_is_better=True)
+# LASSO
+lasso_pipeline = Pipeline([("scaler", StandardScaler()), ('model', Lasso(random_state=42))])
 
 # ELASTIC NET
 e_net_pipeline = Pipeline([
@@ -60,8 +47,8 @@ mod_e_net = GridSearchCV(e_net_pipeline, {"model__alpha": alphas, "model__l1_rat
 rf_params_grid = {
     'bootstrap': [True],
     'max_depth': [15],
-    'max_features': [20],
-    'min_samples_leaf': [2],
+    'max_features': [10, 20],
+    'min_samples_leaf': [2,4],
     'min_samples_split': [2, 4],
     'n_estimators': [1000]
 }
@@ -69,6 +56,9 @@ rf_params_grid = {
 rf = RandomForestRegressor(random_state=42)
 
 mod_rf = GridSearchCV(estimator=rf, param_grid=rf_params_grid, scoring="r2", cv=5, n_jobs=-1, verbose=0)
+
+# mixed effects random forest (MERF)
+merf = MERF(max_iterations=5)
 
 # SVM
 
@@ -110,36 +100,33 @@ mod_meta = GridSearchCV(estimator=svr_pipeline, param_grid=ensemble_params_grid,
 
 fwiz = FeatureWiz(corr_limit=0.8, feature_engg='', category_encoders='', dask_xgboost_flag=False, nrows=None, verbose=0)
 
-
-def cor(x, y):
-    """ Return R^2 where x and y are array-like."""
-
-    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
-    return r_value
-
 def scorer_fun(y_true, y_pred):
     return -metrics.mean_squared_error(y_true, y_pred, squared=True)
 
 
-def find_params_xgb(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
+def find_params_xgb(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, classed=False, group_strain=[]):
 
-    max_depths = list(range(2, 4))
+    xgb_params_grid = {'max_depth': [2], 'learning_rate': [0.121], 'n_estimators': [100, 500], 'subsample': [0.5],
+                       'colsample_bylevel': [0.275], 'colsample_bytree': [0.275]}
+
+    xgbr = xgboost.XGBRegressor(seed=20, objective='reg:squarederror', booster='gbtree')
+    max_depths = list(range(2, 10))
     xgb_params_grid["max_depth"] = max_depths
 
     # pipeline für xgbr
-    clf = GridSearchCV(estimator=xgbr,
-                       param_grid=xgb_params_grid,
-                       scoring="r2",
-                       verbose=0, n_jobs=-1, cv=5)
-
+    if not classed: clf = GridSearchCV(estimator=xgbr, param_grid=xgb_params_grid, scoring="r2", verbose=0, n_jobs=-1, cv=5)
+    else:
+        gkf = list(GroupKFold(n_splits=5).split(X_strain, y_strain, group_strain))
+        clf = GridSearchCV(estimator=xgbr, param_grid=xgb_params_grid, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
     # training model
-    results = clf.fit(X_strain, y_strain, verbose=0)
+    results = clf.fit(X_strain, y_strain, verbose=10)
 
 
-    subsamples = np.linspace(0.05, 1, 3)
+    subsamples = [0.1, 0.5, 1]
     colsample_bytrees = np.linspace(0.05, 0.5, 3)
     colsample_bylevel = np.linspace(0.05, 0.5, 3)
 
+    print(results.best_params_)
     # merge into full param dicts
 
     params_dict = results.best_params_
@@ -149,25 +136,25 @@ def find_params_xgb(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
     params_dict["colsample_bytree"] = colsample_bytrees
     params_dict["colsample_bylevel"] = colsample_bylevel
 
-    clf = GridSearchCV(estimator=xgbr,
-                       param_grid=params_dict,
-                       scoring="r2",
-                       verbose=0, n_jobs=-1, cv=5)
+    if not classed: clf = GridSearchCV(estimator=xgbr, param_grid=params_dict, scoring="r2", verbose=0, n_jobs=-1, cv=5)
+    else:
+        gkf = list(GroupKFold(n_splits=5).split(X_strain, y_strain, group_strain))
+        clf = GridSearchCV(estimator=xgbr, param_grid=params_dict, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
 
-    results = clf.fit(X_strain, y_strain, verbose=0)
+    results = clf.fit(X_strain, y_strain, verbose=10)
+    print(results.best_params_)
 
-
-    learning_rates = np.logspace(-3, -0.7, 3)
+    learning_rates = np.logspace(-5, -0.1, 7)
     params_dict = results.best_params_
     params_dict = {md: [params_dict[md]] for md in params_dict}
     params_dict["learning_rate"] = learning_rates
 
-    clf = GridSearchCV(estimator=xgbr,
-                       param_grid=params_dict,
-                       scoring="r2",
-                       verbose=0, n_jobs=-1, cv=5)
+    if not classed: clf = GridSearchCV(estimator=xgbr, param_grid=params_dict, scoring="r2", verbose=0, n_jobs=-1, cv=5)
+    else:
+        gkf = list(GroupKFold(n_splits=5).split(X_strain, y_strain, group_strain))
+        clf = GridSearchCV(estimator=xgbr, param_grid=params_dict, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
 
-    results = clf.fit(X_strain, y_strain, verbose=0)
+    results = clf.fit(X_strain, y_strain, verbose=10)
     print(results.best_params_)
 
     best_model = clf.best_estimator_
@@ -188,9 +175,14 @@ def find_params_xgb(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
     return params, r, nrmse
 
 
-def find_params_rf(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
+def find_params_rf(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, classed=False, group_strain=[]):
 
     y_strain = y_strain.reshape(-1, )
+    if not classed: mod_rf = GridSearchCV(estimator=rf, param_grid=rf_params_grid, scoring="r2", cv=5, n_jobs=-1, verbose=0)
+    else:
+        gkf = list(GroupKFold(n_splits=5).split(X_strain, y_strain, group_strain))
+        mod_rf = GridSearchCV(estimator=rf, param_grid=rf_params_grid, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
+
     results = mod_rf.fit(X_strain, y_strain)
     best_model = results.best_estimator_
 
@@ -208,9 +200,31 @@ def find_params_rf(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
     print("RF_r: " + str(r["rf"][-1]))
     return params, r, nrmse
 
+def find_params_merf(X_valid, X_strain, y_valid, y_strain, group_strain, group_valid, r, nrmse):
+    z = np.array([1] * len(X_strain)).reshape(-1,1)
+    y_strain = y_strain.reshape(-1,)
+    group_strain = group_strain.reset_index(drop=True)
+    group_valid = group_valid.reset_index(drop=True)
+    merf.fit(X = X_strain, Z=z, clusters = group_strain, y = y_strain)
+    z = np.array([1] * len(X_valid)).reshape(-1,1)
+    merf_pred = merf.predict(X=X_valid,Z=z, clusters=group_valid)
+    y_valid = y_valid.reshape(-1, )
+    if "merf" in r:
+        r["merf"].append(cor(y_valid, merf_pred))
+        nrmse["merf"].append(metrics.mean_squared_error(y_valid, merf_pred, squared=False) / statistics.stdev(y_valid))
+    else:
+        r["merf"] = [cor(y_valid, merf_pred)]
+        nrmse["merf"] = [metrics.mean_squared_error(y_valid, merf_pred, squared=False) / statistics.stdev(y_valid)]
+    print("merf_nrmse: " + str(nrmse["merf"][-1]))
+    print("merf_r: " + str(r["merf"][-1]))
+    return r, nrmse
+def find_params_lasso(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, classed=False, group_strain=[]):
 
+    if not classed: mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 0.7, 0.005)}, cv=5, scoring="r2", verbose=0, n_jobs=-1)
+    else:
+        gkf = list(GroupKFold(n_splits=5).split(X_strain, y_strain, group_strain))
+        mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 0.7, 0.005)}, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
 
-def find_params_lasso(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
     results = mod_lasso.fit(X_strain, y_strain)
     best_model = results.best_estimator_
     lasso_pred = best_model.predict(X_valid)
@@ -229,7 +243,13 @@ def find_params_lasso(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
     return params, r, nrmse
 
 
-def find_params_e_net(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
+def find_params_e_net(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, classed=False, group_strain=[]):
+
+
+    if not classed: mod_e_net = GridSearchCV(e_net_pipeline, {"model__alpha": alphas, "model__l1_ratio": ratios}, cv=5, scoring="r2", verbose=0, n_jobs=-1)
+    else:
+        gkf = list(GroupKFold(n_splits=5).split(X_strain, y_strain, group_strain))
+        mod_e_net = GridSearchCV(e_net_pipeline, {"model__alpha": alphas, "model__l1_ratio": ratios}, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
 
     results = mod_e_net.fit(X_strain, y_strain)
     best_model = results.best_estimator_
@@ -257,8 +277,8 @@ def find_params_gpb(X_valid, X_strain, y_valid, y_strain, group_strain, group_va
     opt_params = gpb.grid_search_tune_parameters(param_grid=gpb_param_grid, params=gpb_other_params,
                                                  num_try_random=None, nfold=5, seed=1000, metric="rmse",
                                                  train_set=data_train, gp_model=gp_model,
-                                                 use_gp_model_for_validation=True, verbose_eval=0,
-                                                 num_boost_round=200, early_stopping_rounds=10)
+                                                 use_gp_model_for_validation=True, verbose_eval=0, early_stopping_rounds=10,
+                                                 num_boost_round=200)
 
     print(opt_params)
     bst = gpb.train(params=opt_params['best_params'], train_set=data_train,
@@ -281,10 +301,12 @@ def find_params_gpb(X_valid, X_strain, y_valid, y_strain, group_strain, group_va
     print("GPB_params: " + str(params["gpb"][-1]))
     return params, r, nrmse
 
-def find_params_svr(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
+def find_params_svr(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, classed=False, group_strain=[]):
 
-    mod_svr = GridSearchCV(estimator=svr_pipeline, param_grid=svr_params_grid,
-                           cv=3, n_jobs=-1, verbose=0)
+    if not classed: mod_svr = GridSearchCV(estimator=svr_pipeline, param_grid=svr_params_grid, cv=5, scoring="r2", n_jobs=-1, verbose=0)
+    else:
+        gkf = list(GroupKFold(n_splits=5).split(X_strain, y_strain, group_strain))
+        mod_svr = GridSearchCV(estimator=svr_pipeline, param_grid=svr_params_grid, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
 
     y_strain = y_strain.reshape(-1, )
 
@@ -308,34 +330,45 @@ def find_params_svr(X_valid, X_strain, y_valid, y_strain, params, r, nrmse):
     return params, r, nrmse
 
 
-def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run_list, group_strain, group_valid):
+def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run_list, group_strain, group_valid, classed=False, feature_selection=False):
     params_dict = {}
+
+    xgbr = xgboost.XGBRegressor(seed=20, objective='reg:squarederror', booster='gbtree')
     for model in params:
         params_dict[model] = params[model][-1]
         params_dict[model] = {md: [params_dict[model][md]] for md in params_dict[model]}
 
     y_valid = y_valid.reshape(-1,)
     y_strain = y_strain.reshape(-1,)
+    dict_models = {}
+    if "xgb" in params:
+        mod_xgb = GridSearchCV(estimator=xgbr, param_grid=params_dict["xgb"], scoring="r2", verbose=0,
+                           n_jobs=-1, cv=5)
+        dict_models["xgb"] = mod_xgb
+    if "lasso" in params:
+        mod_lasso = GridSearchCV(estimator=lasso_pipeline, param_grid=params_dict["lasso"], scoring="r2", verbose=0,
+                           n_jobs=-1, cv=5)
+        dict_models["lasso"] = mod_lasso
+    if "rf" in params:
+        mod_rf = GridSearchCV(estimator=rf, param_grid=params_dict["rf"], scoring="r2", verbose=0,
+                           n_jobs=-1, cv=5)
+        dict_models["rf"] = mod_rf
+    if "svr" in params:
+        mod_svr = GridSearchCV(estimator=svr_pipeline, param_grid=params_dict["svr"], scoring="r2", verbose=0,
+                           n_jobs=-1, cv=5)
+        dict_models["svr"] = mod_svr
 
-    mod_xgb = GridSearchCV(estimator=xgbr, param_grid=params_dict["xgb"], scoring="r2", verbose=0,
+    if "e_net" in params:
+        mod_e_net = GridSearchCV(estimator=e_net_pipeline, param_grid=params_dict["e_net"], scoring="r2", verbose=0,
                            n_jobs=-1, cv=5)
-    mod_lasso = GridSearchCV(estimator=lasso_pipeline, param_grid=params_dict["lasso"], scoring="r2", verbose=0,
-                           n_jobs=-1, cv=5)
-    mod_rf = GridSearchCV(estimator=rf, param_grid=params_dict["rf"], scoring="r2", verbose=0,
-                           n_jobs=-1, cv=5)
-    mod_svr = GridSearchCV(estimator=svr_pipeline, param_grid=params_dict["svr"], scoring="r2", verbose=0,
-                           n_jobs=-1, cv=5)
-    mod_e_net = GridSearchCV(estimator=e_net_pipeline, param_grid=params_dict["e_net"], scoring="r2", verbose=0,
-                           n_jobs=-1, cv=5)
+        dict_models["e_net"] = mod_e_net
+
     gp_model = gpb.GPModel(group_data=group_strain, likelihood="gaussian")
     data_train = gpb.Dataset(data=X_strain, label=y_strain)
 
-    dict_models = {"xgb": mod_xgb, "lasso": mod_lasso, "rf": mod_rf, "svr": mod_svr, "e_net": mod_e_net}
-
     yhat_strain, yhat_valid = [], []
-
     for model in run_list:
-        if model != "super" and model != "gpb":
+        if model != "super" and model != "gpb" and model != "merf":
             dict_models[model].fit(X_strain, y_strain)
             yhat = dict_models[model].predict(X_strain)
             yhat = yhat.reshape(-1,1)
@@ -354,9 +387,26 @@ def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run
                                predict_var=True, pred_latent=False)
             yhat = pred["response_mean"].reshape(-1, 1)
             yhat_valid.append(yhat)
+        if model =="merf":
+            z = np.array([1] * len(X_strain)).reshape(-1, 1)
+            group_strain = group_strain.reset_index(drop=True)
+            pred = merf.predict(X = X_strain, Z=z, clusters = group_strain)
+            yhat = pred.reshape(-1,1)
+            yhat_strain.append(yhat)
+            z = np.array([1] * len(X_valid)).reshape(-1, 1)
+            group_valid = group_valid.reset_index(drop=True)
+            pred = merf.predict(X = X_valid, Z=z,clusters = group_valid)
+            yhat = pred.reshape(-1,1)
+            yhat_valid.append(yhat)
 
     meta_X_strain = np.hstack(yhat_strain)
     meta_X_valid= np.hstack(yhat_valid)
+
+
+    if not classed: mod_meta = GridSearchCV(estimator=svr_pipeline, param_grid=ensemble_params_grid, cv=5, scoring="r2", verbose=0, n_jobs=-1)
+    else:
+        gkf = list(GroupKFold(n_splits=5).split(meta_X_strain, y_strain, group_strain))
+        mod_meta = GridSearchCV(estimator=svr_pipeline, param_grid=ensemble_params_grid, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
 
     results = mod_meta.fit(meta_X_strain, y_strain)
     ensemble_pred = mod_meta.predict(meta_X_valid)
@@ -376,12 +426,13 @@ def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run
     return params, r, nrmse
 
 
-def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, series_group = []):
+def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, series_group = [], classed=False):
     best_algorithms = []
     r_dict = {}
     nrmse_dict = {}
     all_params_dict = {}
     mean_r = {}
+    z_r = {}
     mean_nrmse = {}
     df_r = pd.DataFrame()
     df_nrmse = pd.DataFrame()
@@ -409,21 +460,24 @@ def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, 
             X_strain_selected, X_valid_selected, y_strain, y_valid = X_strain.values, X_valid.values, y_strain.values, y_valid.values
             print("Validation Fold: " + str(inner_fold))
 
-            if "lasso" in run_list: all_params_dict, r_dict, nrmse_dict= find_params_lasso(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
-            if "gpb" in run_list and not series_group.empty: all_params_dict, r_dict, nrmse_dict= find_params_gpb(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, group_strain=group_strain, group_valid=group_valid, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
-            if "e_net" in run_list: all_params_dict, r_dict, nrmse_dict= find_params_e_net(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
-            if "rf" in run_list: all_params_dict, r_dict, nrmse_dict = find_params_rf(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
-            if "svr" in run_list: all_params_dict, r_dict, nrmse_dict = find_params_svr(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
-            if "xgb" in run_list: all_params_dict, r_dict, nrmse_dict = find_params_xgb(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
-            if "super" in run_list: all_params_dict, r_dict, nrmse_dict = SuperLearner_fun(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, run_list=run_list, group_strain=group_strain, group_valid=group_valid,)
+            if "lasso" in run_list: all_params_dict, r_dict, nrmse_dict= find_params_lasso(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
+            if "gpb" in run_list and not series_group.empty: all_params_dict, r_dict, nrmse_dict = find_params_gpb(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, group_valid=group_valid, group_strain=group_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
+            if "merf" in run_list and not series_group.empty: r_dict, nrmse_dict = find_params_merf(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, group_valid=group_valid, group_strain=group_strain, r=r_dict, nrmse=nrmse_dict)
+            if "e_net" in run_list: all_params_dict, r_dict, nrmse_dict= find_params_e_net(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
+            if "rf" in run_list: all_params_dict, r_dict, nrmse_dict = find_params_rf(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain,  params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
+            if "svr" in run_list: all_params_dict, r_dict, nrmse_dict = find_params_svr(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
+            if "xgb" in run_list: all_params_dict, r_dict, nrmse_dict = find_params_xgb(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
+            if "super" in run_list: all_params_dict, r_dict, nrmse_dict = SuperLearner_fun(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, run_list=run_list, group_strain=group_strain, group_valid=group_valid, classed=classed, feature_selection=feature_selection)
 
 
         for model_name in run_list:  # Alle rs und nrmses sammeln in jeweils einem df
             mean_r[model_name] = np.mean(r_dict[model_name][-val_splits:])
+            z_r[model_name] = np.mean(r_dict[model_name][-val_splits:]) / np.std(r_dict[model_name][-val_splits:])
             mean_nrmse[model_name] = np.mean(nrmse_dict[model_name][-val_splits:])
             print(model_name + " mean r: " + str(mean_r[model_name]))
             print(model_name + "mean nrmse: " + str(mean_nrmse[model_name]))
         print(mean_r)
+        print(z_r)
         best_algorithms.append(sorted(mean_r, key=lambda key: mean_r[key])[-1])
 
     for model_name in run_list:                  # Alle rs und nrmses sammeln in jeweils einem df
