@@ -38,10 +38,16 @@ from merf import MERF
 from merf.utils import MERFDataGenerator
 
 
-base_path = "C:/Users/clalk/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen"
+base_path = r"C:\Users\clalk\Documents\PsyRes\Bern-Psychotherapeutenstudie\mixed Analysen"
 Datensatz = "C:/Users/clalk/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/data_mixed/Datensatz"
 
-sub_folder_output = "data_mixed/Patient_classed/Allianz"
+Datensatz = r"C:\Users\clalk\JLUbox\Transkriptanalysen\3 KOGNITIVE VERZERRUNGEN\Analysen"
+
+Datensatz = r"C:\Users\clalk\Documents\PsyRes\Bern-Psychotherapeutenstudie\mixed Analysen"
+
+
+
+sub_folder_output = r"Out_change_lasso"
 #sub_folder_output = "data_mixed/Therapeut/Allianz"
 
 
@@ -67,14 +73,16 @@ def ensemble_predict(X_test):
             if model != "gpb" and model != "merf" and model != "super":
                 yhat_list.append(dict_models[index][model].predict(X).reshape(-1,1))
             elif model == "gpb":
-                pred = dict_models[index][model].predict(data=X, group_data_pred=group_test,
+                pred = dict_models[index][model].predict(data=np.delete(X, Z_loc, axis=1), group_data_pred=group_test,
+                                                         group_rand_coef_data_pred=X[:, Z_loc],
                                    predict_var=True, pred_latent=False)
                 yhat = pred["response_mean"].reshape(-1, 1)
                 yhat_list.append(yhat)
             elif model == "merf":
                 z = np.array([1] * len(X)).reshape(-1, 1)
+                z = np.hstack([z, X[:, Z_loc]]).astype(float)
                 group_test = pd.Series(group_test.reshape(-1,))
-                yhat = dict_models[index][model].predict(X=X, Z=z, clusters=group_test)
+                yhat = dict_models[index][model].predict(X=np.delete(X, Z_loc, axis=1), Z=z, clusters=group_test)
                 yhat_list.append(yhat.reshape(-1, 1))
         meta_X_test = np.hstack(yhat_list)
         y_pred = dict_models[index]["super"].predict(meta_X_test)
@@ -90,10 +98,11 @@ path = Datensatz
 os.chdir(path)
 print(path)
 
-classed_splits = True # Sollen Splits nach Groups getrennt werden, zB Sitzungen nach Patientenzugehörigkeit?
-df = pd.read_excel('topic_modeling_outcome_patient.xlsx')
-outcome = "srs_ges"  # Welcher OUtcome soll vorhergesagt werden?
-outcome_list = ["hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges"] # Welche Outcomes sind enthalten? "hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges", "depression", "hscl10"
+classed_splits = False # Sollen Splits nach Groups getrennt werden, zB Sitzungen nach Patientenzugehörigkeit?
+df = pd.read_excel('change.xlsx')
+df = df.drop("Unnamed: 0", axis=1)
+outcome = "percent_change"  # Welcher OUtcome soll vorhergesagt werden?
+outcome_list = ["percent_change"] # Welche Outcomes sind enthalten? "hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges", "depression", "hscl10"
 outcome_to_features = [] # Welche Outcomes sollen Features werden? Z.B. wenn ich hscl_aktuell
                         # als Prädiktor habe für hscl_lag_5
 # #Feature range prüfen
@@ -106,11 +115,12 @@ outcome_list eingetragen.
 '''
 
 
-
 test_sets, val_sets = 10, 5 # Anzahl an Test sets für outer cross-validation und Validation sets für inner cv
 df_id, df_ml, df_nested_cv = prepare.split_preparation(test_splits=test_sets, val_splits=val_sets, df=df,
                                         outcome=outcome, outcome_list=outcome_list,
                                         outcome_to_features=outcome_to_features, classed_splits=classed_splits)  # Alternativ "srs_ges"
+
+
 
 path = os.path.join(base_path, sub_folder_output)
 os.chdir(path)
@@ -123,7 +133,7 @@ del df_ml["hscl_aktuelle_sitzung"]
 '''
 
 # File Benennung: Project (z.B. tm für topic modeling) _ Patient oder Therapeut oder Both _ classed oder nicht _ outcome (zB. hscl1 für hscl lag 1).
-writer = pd.ExcelWriter("tm_patient_classed_srs.xlsx", engine="xlsxwriter")
+writer = pd.ExcelWriter("ml_both_change.xlsx", engine="xlsxwriter")
 # Write each dataframe to a different worksheet.
 df_id.to_excel(writer, sheet_name="ID", index=False)
 df_ml.to_excel(writer, sheet_name="ML", index=False)
@@ -139,7 +149,7 @@ print(path)
 
 
 # File auswählen, kann übersprungen werden wenn gerade oben der Split durchgeführt wurde
-filename = "tm_therapeut_classed_hscl.xlsx"
+filename = "ml_both_change.xlsx"
 df_id = pd.read_excel(filename, sheet_name="ID") # ID besteht aus Class (=Patientencode) und session (Sitzungsnummer oder KAT)
 df_ml = pd.read_excel(filename, sheet_name="ML") # Die letzt Variable in ML ist automatisch das Target, der Rest sind Features
 df_nested_cv = pd.read_excel(filename, sheet_name="CV") # CV besteht aus dem Nested-cv-scheme, normalerweise 5 sets inner cv und 10 sets outer cv
@@ -153,9 +163,10 @@ xgb_params_grid = {'max_depth': [2, 3, 4],
                    'colsample_bytree': [0.01, 0.1, 0.3]}  # Muss evtl. weg!'early_stopping_rounds': [500]
 
 
-# Auswahl: "lasso", "e_net", "svr", "rf", "xgb", "gpb", "merf", "super". super geht nur, wenn mindestens zwei weitere ausgewählt sind.
-classed_splits=True # Sind die Daten getrennt nach Klassen, z.B. nach Patienten und soll das via CV gelöst werden
-run_list = ["e_net", "svr", "rf", "xgb", "merf", "super"]
+# Auswahl: "lasso", "e_net", "svr", "rf", "xgb", "gpb", "merf", "super". super geht nur, wenn mindestens ein weiterer ausgewählt ist.
+classed_splits=False # Sind die Daten getrennt nach Klassen, z.B. nach Patienten und soll das via CV gelöst werden
+Z_list = [] # Welche Variablen sollen mit Random Slope modelliert werden bei merf/gpb?
+run_list = ["merf", "super", "xgb", "e_net", "rf", "svr", "lasso"]
 val_sets = len(set(df_nested_cv["fold_0"]))-1
 feature_selection = True # Soll Feature Selection eingesetzt werden?
 outcome = df_ml.columns.tolist()[-1]
@@ -165,7 +176,7 @@ outcome = df_ml.columns.tolist()[-1]
 
 
 df_r, df_nrmse, all_params, best_algorithms = cv_fold.cv_with_arrays(df_ml=df_ml, df_cv=df_nested_cv,
-    val_splits=val_sets, run_list=run_list, feature_selection = feature_selection, series_group = df_id["Class"], classed=classed_splits)
+    val_splits=val_sets, run_list=run_list, feature_selection = feature_selection, series_group = df_id["Class"], classed=classed_splits, random_effects=Z_list)
 
 
 ###############Ab hier gibt es Output, der gespeichert wird!!!!#################################################
@@ -278,16 +289,30 @@ id_list = []
 X_list_super = []
 xAI=True # Soll das Modell erklärt werden?
 outcome = df_ml.columns.tolist()[-1]
+
+
+
 for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehen
     print("Test fold: " + str(col))
     df_y_train = df_ml.loc[df_nested_cv[col]!=-1, [outcome]]
-    df_X_train = df_ml.loc[df_nested_cv[col]!=-1, :last_feature]
-    group_train = df_id.loc[df_nested_cv[col]!=-1, ["Class"]]
-    session_train = df_id.loc[df_nested_cv[col]!=-1, ["session"]]
     df_y_test = df_ml.loc[df_nested_cv[col]==-1, [outcome]]
+
+    df_X_train = df_ml.loc[df_nested_cv[col]!=-1, :last_feature]
     df_X_test = df_ml.loc[df_nested_cv[col]==-1, :last_feature]
+
+    df_fiX_train = df_X_train.drop(Z_list, axis=1)
+    df_fiX_test = df_X_test.drop(Z_list, axis=1)
+
+    df_Z_train = df_X_train[Z_list]
+    df_Z_test = df_X_test[Z_list]
+
+    group_train = df_id.loc[df_nested_cv[col]!=-1, ["Class"]]
     group_test = df_id.loc[df_nested_cv[col] == -1, ["Class"]]
+
+    session_train = df_id.loc[df_nested_cv[col]!=-1, ["session"]]
     session_test = df_id.loc[df_nested_cv[col] == -1, ["session"]]
+
+    Z_loc = [df_X_train.columns.get_loc(col) for col in Z_list]
     feature_list = df_X_train.columns.tolist()
     id_test = df_id.loc[df_nested_cv[col] == -1, :]
     dict_models.append({})
@@ -300,11 +325,17 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
         df_X_train[df_X_train.columns.difference(feature_selected)] = 0
         df_X_test[df_X_test.columns.difference(feature_selected)] = 0
 
-    X_train_a = df_X_train.values
     y_train_a = df_y_train.values.reshape(-1,)
-    X_test_a = df_X_test.values
     y_test_a = df_y_test.values.reshape(-1,)
 
+    X_test_a = df_X_test.values
+    X_train_a = df_X_train.values
+
+    fiX_train_a = df_fiX_train.values
+    fiX_test_a = df_fiX_test.values
+
+    Z_train_a = df_Z_train.values
+    Z_test_a = df_Z_test.values
 
     if best_algorithms[i]=="svr" or best_algorithms[i]=="super" and "svr" in run_list:
 
@@ -416,8 +447,11 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
         dict_models[i]["xgb"] = mod_xgb
 
     if best_algorithms[i] == "gpb" or best_algorithms[i]=="super" and "gpb" in run_list:
-        gp_model = gpb.GPModel(group_data=group_train, likelihood="gaussian")
-        data_train = gpb.Dataset(data=X_train_a, label=y_train_a)
+        if Z_list: gp_model = gpb.GPModel(group_data=group_train, group_rand_coef_data=Z_train_a,
+                                          ind_effect_group_rand_coef=[1]*len(Z_list), likelihood="gaussian")
+        else: gp_model = gpb.GPModel(group_data=group_train, likelihood="gaussian")
+
+        data_train = gpb.Dataset(data=fiX_train_a, label=y_train_a)
         opt_params = gpb.grid_search_tune_parameters(param_grid=gpb_param_grid, params=gpb_other_params,
                                                      num_try_random=None, nfold=5, seed=1000, metric="rmse",
                                                      train_set=data_train, gp_model=gp_model,
@@ -430,9 +464,10 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
 
     if best_algorithms[i] == "merf" or best_algorithms[i]=="super" and "merf" in run_list:
         z = np.array([1] * len(X_train_a)).reshape(-1, 1)
+        z = np.hstack([z, Z_train_a])
         y_train_merf = y_train_a.reshape(-1, )
         group_train = group_train.reset_index(drop=True).squeeze()
-        merf.fit(X=X_train_a, Z=z, clusters=group_train, y=y_train_merf)
+        merf.fit(X=fiX_train_a, Z=z, clusters=group_train, y=y_train_merf)
         dict_models[i]["merf"] = merf
 
     yhat_train, yhat_test = [], []
@@ -446,24 +481,35 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
             yhat = yhat.reshape(-1,1)
             yhat_test.append(yhat)
         if model == "gpb":
-
-            pred = dict_models[i][model].predict(data=X_train_a, group_data_pred=group_train,
-                               predict_var=True, pred_latent=False)
+            if not Z_list:
+                pred = dict_models[i][model].predict(data=fiX_train_a, group_data_pred=group_train,
+                                                     predict_var=True, pred_latent=False)
+            else:
+                pred = dict_models[i][model].predict(data=fiX_train_a, group_data_pred=group_train,
+                                                    group_rand_coef_data_pred=Z_train_a,
+                                                    predict_var=True, pred_latent=False)
             yhat = pred["response_mean"].reshape(-1,1)
             yhat_train.append(yhat)
-            pred = dict_models[i][model].predict(data=X_test_a, group_data_pred=group_test,
+            if not Z_list:
+                pred = dict_models[i][model].predict(data=fiX_test_a, group_data_pred=group_test,
+                               predict_var=True, pred_latent=False)
+            else:
+                pred = dict_models[i][model].predict(data=fiX_test_a, group_data_pred=group_test,
+                                                 group_rand_coef_data_pred=Z_test_a,
                                predict_var=True, pred_latent=False)
             yhat = pred["response_mean"].reshape(-1, 1)
             yhat_test.append(yhat)
         if model == "merf":
             z = np.array([1] * len(X_train_a)).reshape(-1, 1)
+            z = np.hstack([z, Z_train_a])
             group_train = group_train.reset_index(drop=True).squeeze()
-            pred = dict_models[i][model].predict(X=X_train_a, Z=z, clusters=group_train)
+            pred = dict_models[i][model].predict(X=fiX_train_a, Z=z, clusters=group_train)
             yhat = pred.reshape(-1, 1)
             yhat_train.append(yhat)
             z = np.array([1] * len(X_test_a)).reshape(-1, 1)
+            z = np.hstack([z, Z_test_a])
             group_test = group_test.reset_index(drop=True).squeeze()
-            pred = dict_models[i][model].predict(X=X_test_a, Z=z, clusters=group_test)
+            pred = dict_models[i][model].predict(X=fiX_test_a, Z=z, clusters=group_test)
             yhat = pred.reshape(-1, 1)
             yhat_test.append(yhat)
 
@@ -499,6 +545,9 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
             id_list_super.append(id_test) # In der super_list sind alle ids, die über die Funktion ensemble_predict erklärt werden
             X_list_super.append(df_X_test)
 
+        elif best_algorithms[i]=="rf" or best_algorithms[i]=="xgb":
+            model_estimator = dict_models[i][best_algorithms[i]].best_estimator_
+            explainer = shap.TreeExplainer(model_estimator, data=shap.sample(X_train_a, 100))
         elif best_algorithms[i]=="gpb":
             explainer = shap.TreeExplainer(bst, data=shap.sample(X_train_a, 100))
         elif best_algorithms[i]=="merf":
@@ -506,7 +555,10 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
         else: explainer = shap.explainers.Permutation(dict_models[i][best_algorithms[i]].predict, masker=shap.sample(X_train_a, 100), max_evals=600)
         if not best_algorithms[i]=="super":
             id_list.append(id_test) # In der id_list werden alle ids, die nicht vom superlearner vorhergesagt werden, gespeichert.
-            shaps.append(explainer(X_test_a))
+            if best_algorithms[i]=="rf" or best_algorithms[i]=="xgb":
+                shaps.append(explainer(X_test_a, check_additivity=False))
+            else:
+                shaps.append(explainer(X_test_a))
 
 
 if xAI==True:
@@ -569,11 +621,14 @@ if xAI == True:
     shap.summary_plot(shap_values, plot_size=(25, 15), max_display=15, show=False)
     plt.savefig('summary_plot.png')
     plt.show()
-    shap.plots.waterfall(shap_values[382], max_display=20, show=False)
+    shap.plots.waterfall(shap_values[10], max_display=20, show=False)
     plt.gcf().set_size_inches(50,15)
     plt.savefig('waterfall_plot.png')
     plt.show()
+    shap.plots.heatmap(shap_values)
 
+    #shap.plots.scatter(shap_values[:, "words"])
+    #shap.plots.scatter(shap_values[:, "words"], color=shap_values[:, "overgeneralizing"])
 
 #Save SHAP values
 df_id_data = pd.DataFrame(id_data, columns=["Class", "session"])
@@ -604,3 +659,5 @@ if xAI == True:
     df_shap_values_new["percent_shap_value"] = df_shap_values_new["SHAP-value"] / df_shap_values_new[
         "SHAP-value"].sum() * 100
     df_shap_values_new.to_excel('SHAP-IMPORTANCE.xlsx')
+
+

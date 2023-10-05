@@ -200,14 +200,17 @@ def find_params_rf(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, class
     print("RF_r: " + str(r["rf"][-1]))
     return params, r, nrmse
 
-def find_params_merf(X_valid, X_strain, y_valid, y_strain, group_strain, group_valid, r, nrmse):
+def find_params_merf(X_valid, X_strain, y_valid, y_strain, group_strain, group_valid, random_effects, r, nrmse):
     z = np.array([1] * len(X_strain)).reshape(-1,1)
+    z = np.hstack([z, X_strain[:, random_effects]])
     y_strain = y_strain.reshape(-1,)
     group_strain = group_strain.reset_index(drop=True)
     group_valid = group_valid.reset_index(drop=True)
-    merf.fit(X = X_strain, Z=z, clusters = group_strain, y = y_strain)
+    merf.fit(X = np.delete(X_strain, random_effects, axis=1), Z=z, clusters=group_strain, y=y_strain)
+
     z = np.array([1] * len(X_valid)).reshape(-1,1)
-    merf_pred = merf.predict(X=X_valid,Z=z, clusters=group_valid)
+    z = np.hstack([z, X_valid[:, random_effects]])
+    merf_pred = merf.predict(X=np.delete(X_valid, random_effects, axis=1),Z=z, clusters=group_valid)
     y_valid = y_valid.reshape(-1, )
     if "merf" in r:
         r["merf"].append(cor(y_valid, merf_pred))
@@ -270,10 +273,14 @@ def find_params_e_net(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, cl
     return params, r, nrmse
 
 
-def find_params_gpb(X_valid, X_strain, y_valid, y_strain, group_strain, group_valid, params, r, nrmse):
-    gp_model = gpb.GPModel(group_data=group_strain, likelihood="gaussian")
+def find_params_gpb(X_valid, X_strain, y_valid, y_strain, group_strain, group_valid, random_effects, params, r, nrmse):
+    if random_effects:
+        gp_model = gpb.GPModel(group_data=group_strain, group_rand_coef_data=X_strain[:, random_effects],
+                               ind_effect_group_rand_coef=[1] * len(random_effects), likelihood="gaussian")
+    else:
+        gp_model = gpb.GPModel(group_data=group_strain, likelihood="gaussian")
     y_strain = y_strain.reshape(-1, )
-    data_train = gpb.Dataset(data=X_strain, label=y_strain)
+    data_train = gpb.Dataset(data=np.delete(X_strain, random_effects, axis=1), label=y_strain)
     opt_params = gpb.grid_search_tune_parameters(param_grid=gpb_param_grid, params=gpb_other_params,
                                                  num_try_random=None, nfold=5, seed=1000, metric="rmse",
                                                  train_set=data_train, gp_model=gp_model,
@@ -283,7 +290,11 @@ def find_params_gpb(X_valid, X_strain, y_valid, y_strain, group_strain, group_va
     print(opt_params)
     bst = gpb.train(params=opt_params['best_params'], train_set=data_train,
                     gp_model=gp_model, num_boost_round=200)
-    pred = bst.predict(data=X_valid, group_data_pred=group_valid,
+    if random_effects:
+        pred = bst.predict(data=X_valid, group_data_pred=group_valid,group_rand_coef_data_pred=X_strain[:, random_effects],
+                       predict_var=True, pred_latent=False)
+    else:
+        pred = bst.predict(data=X_valid, group_data_pred=group_valid,
                        predict_var=True, pred_latent=False)
     pred_gpb = pred["response_mean"].reshape(-1,)
     y_valid = y_valid.reshape(-1, )
@@ -330,7 +341,7 @@ def find_params_svr(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, clas
     return params, r, nrmse
 
 
-def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run_list, group_strain, group_valid, classed=False, feature_selection=False):
+def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run_list, group_strain, group_valid, random_effects, classed=False, feature_selection=False):
     params_dict = {}
 
     xgbr = xgboost.XGBRegressor(seed=20, objective='reg:squarederror', booster='gbtree')
@@ -363,8 +374,12 @@ def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run
                            n_jobs=-1, cv=5)
         dict_models["e_net"] = mod_e_net
 
-    gp_model = gpb.GPModel(group_data=group_strain, likelihood="gaussian")
-    data_train = gpb.Dataset(data=X_strain, label=y_strain)
+    if random_effects:
+        gp_model = gpb.GPModel(group_data=group_strain, likelihood="gaussian")
+    else:
+        gp_model = gpb.GPModel(group_data=group_strain, group_rand_coef_data=X_strain[:, random_effects],
+                    ind_effect_group_rand_coef=[1] * len(random_effects), likelihood="gaussian")
+    data_train = gpb.Dataset(data=np.delete(X_strain, random_effects, axis=1), label=y_strain)
 
     yhat_strain, yhat_valid = [], []
     for model in run_list:
@@ -379,23 +394,36 @@ def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run
         if model == "gpb":
             bst = gpb.train(params=params_dict['gpb'], train_set=data_train,
                             gp_model=gp_model, num_boost_round=200)
-            pred = bst.predict(data=X_strain, group_data_pred=group_strain,
+            if random_effects:
+                pred = bst.predict(data=np.delete(X_strain, random_effects, axis=1), group_data_pred=group_strain,
+                                   group_rand_coef_data_pred=X_strain[:, random_effects],
+                               predict_var=True, pred_latent=False)
+            else:
+                pred = bst.predict(data=X_strain, group_data_pred=group_strain,
                                predict_var=True, pred_latent=False)
             yhat = pred["response_mean"].reshape(-1,1)
             yhat_strain.append(yhat)
-            pred = bst.predict(data=X_valid, group_data_pred=group_valid,
+            if random_effects:
+                pred = bst.predict(data=np.delete(X_valid, random_effects, axis=1), group_data_pred=group_valid,
+                                   group_rand_coef_data_pred=X_valid[:, random_effects],
+                                    predict_var=True, pred_latent=False)
+            else:
+                pred = bst.predict(data=X_valid, group_data_pred=group_valid,
                                predict_var=True, pred_latent=False)
             yhat = pred["response_mean"].reshape(-1, 1)
             yhat_valid.append(yhat)
         if model =="merf":
             z = np.array([1] * len(X_strain)).reshape(-1, 1)
+            z = np.hstack([z, X_strain[:, random_effects]])
             group_strain = group_strain.reset_index(drop=True)
-            pred = merf.predict(X = X_strain, Z=z, clusters = group_strain)
+            pred = merf.predict(X=X_strain, Z=z, clusters=group_strain)
             yhat = pred.reshape(-1,1)
             yhat_strain.append(yhat)
+
             z = np.array([1] * len(X_valid)).reshape(-1, 1)
+            z = np.hstack([z, X_valid[:, random_effects]])
             group_valid = group_valid.reset_index(drop=True)
-            pred = merf.predict(X = X_valid, Z=z,clusters = group_valid)
+            pred = merf.predict(X=X_valid, Z=z, clusters=group_valid)
             yhat = pred.reshape(-1,1)
             yhat_valid.append(yhat)
 
@@ -426,7 +454,7 @@ def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run
     return params, r, nrmse
 
 
-def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, series_group = [], classed=False):
+def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, series_group = [], classed=False, random_effects = []):
     best_algorithms = []
     r_dict = {}
     nrmse_dict = {}
@@ -442,7 +470,7 @@ def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, 
             df_valid = df_ml[df_cv.iloc[:, col] == inner_fold]  # X_valid erstellen
             df_strain = df_ml[(df_cv.iloc[:, col] != inner_fold) & (df_cv.iloc[:, col] != -1)]  # X strain ist ungleich x_valid und ungleich x_test
             if not series_group.empty:
-                group_valid = series_group[df_cv.iloc[:, col] == inner_fold]  # X_valid erstellen
+                group_valid = series_group[df_cv.iloc[:, col] == inner_fold]  # group_valid erstellen
                 group_strain = series_group[(df_cv.iloc[:, col] != inner_fold) & (
                             df_cv.iloc[:, col] != -1)]  # X strain ist ungleich x_valid und ungleich x_test
             X_valid = df_valid.iloc[:, :-1]
@@ -457,18 +485,18 @@ def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, 
                 X_strain[X_strain.columns.difference(feature_selected)] = 0
                 X_valid[X_valid.columns.difference(feature_selected)] = 0
 
+            Z_loc = [X_strain.columns.get_loc(col) for col in random_effects]
             X_strain_selected, X_valid_selected, y_strain, y_valid = X_strain.values, X_valid.values, y_strain.values, y_valid.values
             print("Validation Fold: " + str(inner_fold))
 
             if "lasso" in run_list: all_params_dict, r_dict, nrmse_dict= find_params_lasso(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
-            if "gpb" in run_list and not series_group.empty: all_params_dict, r_dict, nrmse_dict = find_params_gpb(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, group_valid=group_valid, group_strain=group_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
-            if "merf" in run_list and not series_group.empty: r_dict, nrmse_dict = find_params_merf(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, group_valid=group_valid, group_strain=group_strain, r=r_dict, nrmse=nrmse_dict)
+            if "gpb" in run_list and not series_group.empty: all_params_dict, r_dict, nrmse_dict = find_params_gpb(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, group_valid=group_valid, group_strain=group_strain, random_effects=Z_loc, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
+            if "merf" in run_list and not series_group.empty: r_dict, nrmse_dict = find_params_merf(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, group_valid=group_valid, group_strain=group_strain, random_effects=Z_loc, r=r_dict, nrmse=nrmse_dict)
             if "e_net" in run_list: all_params_dict, r_dict, nrmse_dict= find_params_e_net(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
             if "rf" in run_list: all_params_dict, r_dict, nrmse_dict = find_params_rf(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain,  params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
             if "svr" in run_list: all_params_dict, r_dict, nrmse_dict = find_params_svr(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
             if "xgb" in run_list: all_params_dict, r_dict, nrmse_dict = find_params_xgb(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
-            if "super" in run_list: all_params_dict, r_dict, nrmse_dict = SuperLearner_fun(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, run_list=run_list, group_strain=group_strain, group_valid=group_valid, classed=classed, feature_selection=feature_selection)
-
+            if "super" in run_list: all_params_dict, r_dict, nrmse_dict = SuperLearner_fun(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, run_list=run_list, group_strain=group_strain, group_valid=group_valid, random_effects=Z_loc, classed=classed, feature_selection=feature_selection)
 
         for model_name in run_list:  # Alle rs und nrmses sammeln in jeweils einem df
             mean_r[model_name] = np.mean(r_dict[model_name][-val_splits:])

@@ -18,13 +18,12 @@ def split_preparation(test_splits, val_splits, df, outcome, outcome_list, outcom
 
     for outer_fold in range(test_splits):  # hinten dran kommt eine Variable für die folds. Darin steht in jedem Fold, wann man valid-set ist.
         df["fold_" + str(outer_fold)] = -1
-
+    df["ID"]="id"
     for i in range(len(df)):
-        df["ID"] = df["Class"] + "_" + df["session"]
+        df["ID"][i] = str(df["Class"][i]) + "_" + str(df["session"][i])
     columns = df.columns.tolist()
     a_data = df.values
-    print(a_data)
-    print(test_kf.split(a_data))
+    print(df["ID"])
 
     if not classed_splits:
         for outer_fold, (train_index, test_index) in enumerate(test_kf.split(a_data)):  #

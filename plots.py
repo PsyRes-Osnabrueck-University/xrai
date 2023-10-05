@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-base_path = "C:/Users/clalk/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/"
+base_path = "C:/Users/clalk/JLUbox/Transkriptanalysen/3 KOGNITIVE VERZERRUNGEN/Analysen/"
 
-sub_folder_output = "data_mixed/Patient/Allianz"# oder "srs" oder "hscl_nächste_sitzung
+sub_folder_output = "HSCL11_0"# oder "srs" oder "hscl_nächste_sitzung
 
 
 path = os.path.join(base_path, sub_folder_output)
@@ -30,7 +30,7 @@ shap.summary_plot(shap_values2, plot_size=(14, 6), max_display=9, show=True)
 shap.summary_plot(shap_values2, plot_size=(14, 6), max_display=9, show=False)
 plt.savefig('top13.png')
 
-shap.plots.waterfall(shap_values2[50], max_display=20, show=False)
+shap.plots.waterfall(shap_values2[43], max_display=20, show=False)
 plt.gcf().set_size_inches(50, 15)
 plt.savefig('waterfall_plot.png')
 plt.show()
