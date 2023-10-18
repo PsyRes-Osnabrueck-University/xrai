@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from typing import Tuple
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+import math
 
 
 from sklearn.metrics import mean_squared_error, make_scorer
@@ -25,9 +26,6 @@ import prepare
 import gpboost as gpb
 import random
 
-
-
-
 from featurewiz import FeatureWiz
 from sklearn import metrics
 import xgboost
@@ -36,22 +34,6 @@ import os
 import sys
 from merf import MERF
 from merf.utils import MERFDataGenerator
-
-
-base_path = r"C:\Users\clalk\Documents\PsyRes\Bern-Psychotherapeutenstudie\mixed Analysen"
-Datensatz = "C:/Users/clalk/JLUbox/Transkriptanalysen/2 TOPIC MODELING/Analysen/data_mixed/Datensatz"
-
-Datensatz = r"C:\Users\clalk\JLUbox\Transkriptanalysen\3 KOGNITIVE VERZERRUNGEN\Analysen"
-
-Datensatz = r"C:\Users\clalk\Documents\PsyRes\Bern-Psychotherapeutenstudie\mixed Analysen"
-
-
-
-sub_folder_output = r"Out_change_lasso"
-#sub_folder_output = "data_mixed/Therapeut/Allianz"
-
-
-
 
 def ensemble_predict(X_test):
     fold = X_test[:, 0]
@@ -91,102 +73,6 @@ def ensemble_predict(X_test):
     return y
 
 
-#-----------------------------------------------------------------------------------------------------------------------
-# MUSS für jeden Datensatz nur einmal gemacht werden.
-
-path = Datensatz
-os.chdir(path)
-print(path)
-
-classed_splits = False # Sollen Splits nach Groups getrennt werden, zB Sitzungen nach Patientenzugehörigkeit?
-df = pd.read_excel('change.xlsx')
-df = df.drop("Unnamed: 0", axis=1)
-outcome = "percent_change"  # Welcher OUtcome soll vorhergesagt werden?
-outcome_list = ["percent_change"] # Welche Outcomes sind enthalten? "hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges", "depression", "hscl10"
-outcome_to_features = [] # Welche Outcomes sollen Features werden? Z.B. wenn ich hscl_aktuell
-                        # als Prädiktor habe für hscl_lag_5
-# #Feature range prüfen
-'''
-Wir brauchen hier einen Datensatz, der als erstes die Variable Class enthält.
-Diese beinhaltet den Patientencode. Danach kommt die Variable session. Diese 
-beinhaltet die Sitzungsnummer. Danach kommen die Features. Diese können beliebig benannt sein. 
-Anschließend kommen die Targets, also die abhängigen Variablen. Diese werden in die Liste
-outcome_list eingetragen. 
-'''
-
-
-test_sets, val_sets = 10, 5 # Anzahl an Test sets für outer cross-validation und Validation sets für inner cv
-df_id, df_ml, df_nested_cv = prepare.split_preparation(test_splits=test_sets, val_splits=val_sets, df=df,
-                                        outcome=outcome, outcome_list=outcome_list,
-                                        outcome_to_features=outcome_to_features, classed_splits=classed_splits)  # Alternativ "srs_ges"
-
-
-
-path = os.path.join(base_path, sub_folder_output)
-os.chdir(path)
-print(path)
-
-'''
-df_ml["hscl5_change"] = df_ml["hscl5"]-df_ml["hscl_aktuelle_sitzung"]
-del df_ml["hscl5"]
-del df_ml["hscl_aktuelle_sitzung"]
-'''
-
-# File Benennung: Project (z.B. tm für topic modeling) _ Patient oder Therapeut oder Both _ classed oder nicht _ outcome (zB. hscl1 für hscl lag 1).
-writer = pd.ExcelWriter("ml_both_change.xlsx", engine="xlsxwriter")
-# Write each dataframe to a different worksheet.
-df_id.to_excel(writer, sheet_name="ID", index=False)
-df_ml.to_excel(writer, sheet_name="ML", index=False)
-df_nested_cv.to_excel(writer, sheet_name="CV", index=False)
-writer.close()
-# Close the Pandas Excel writer and output the Excel file.
-
-# Bei fertigem Datansatz AB HIER!!! ------------------------------------------------------------------------------------
-# Pfad auswählen
-path = os.path.join(base_path, sub_folder_output)
-os.chdir(path)
-print(path)
-
-
-# File auswählen, kann übersprungen werden wenn gerade oben der Split durchgeführt wurde
-filename = "ml_both_change.xlsx"
-df_id = pd.read_excel(filename, sheet_name="ID") # ID besteht aus Class (=Patientencode) und session (Sitzungsnummer oder KAT)
-df_ml = pd.read_excel(filename, sheet_name="ML") # Die letzt Variable in ML ist automatisch das Target, der Rest sind Features
-df_nested_cv = pd.read_excel(filename, sheet_name="CV") # CV besteht aus dem Nested-cv-scheme, normalerweise 5 sets inner cv und 10 sets outer cv
-
-
-xgb_params_grid = {'max_depth': [2, 3, 4],
-                   'learning_rate': [0.001,0.01, ],
-                   'n_estimators': [5, 10, 20, 100, 500, 1000],
-                   'subsample': [0.01, 0.1, 0.3],
-                   'colsample_bylevel': [0.01, 0.1, 0.3],
-                   'colsample_bytree': [0.01, 0.1, 0.3]}  # Muss evtl. weg!'early_stopping_rounds': [500]
-
-
-# Auswahl: "lasso", "e_net", "svr", "rf", "xgb", "gpb", "merf", "super". super geht nur, wenn mindestens ein weiterer ausgewählt ist.
-classed_splits=False # Sind die Daten getrennt nach Klassen, z.B. nach Patienten und soll das via CV gelöst werden
-Z_list = [] # Welche Variablen sollen mit Random Slope modelliert werden bei merf/gpb?
-run_list = ["merf", "super", "xgb", "e_net", "rf", "svr", "lasso"]
-val_sets = len(set(df_nested_cv["fold_0"]))-1
-feature_selection = True # Soll Feature Selection eingesetzt werden?
-outcome = df_ml.columns.tolist()[-1]
-#df_ml["hscl_diff"] = df_ml["hscl_naechste_sitzung"]-df_ml["hscl_aktuelle_sitzung"]
-#del df_ml["hscl_naechste_sitzung"]
-#del df_ml["hscl_aktuelle_sitzung"]
-
-
-df_r, df_nrmse, all_params, best_algorithms = cv_fold.cv_with_arrays(df_ml=df_ml, df_cv=df_nested_cv,
-    val_splits=val_sets, run_list=run_list, feature_selection = feature_selection, series_group = df_id["Class"], classed=classed_splits, random_effects=Z_list)
-
-
-###############Ab hier gibt es Output, der gespeichert wird!!!!#################################################
-path = os.path.join(base_path, sub_folder_output)
-os.chdir(path)
-print(path)
-df_r.to_excel('r-inner-fold.xlsx')
-df_nrmse.to_excel('Nrmse-inner-fold.xlsx')
-
-#------------------------------ Hyperparameter Tuning und finales Modell
 def list_params(params_dict):
     params_dict = {md: [params_dict[md]] for md in params_dict}
     return params_dict
@@ -239,11 +125,19 @@ mod_svr = GridSearchCV(estimator=svr_pipeline, param_grid=svr_params_grid, scori
 likelihood = "gaussian"
 
 
-gpb_param_grid = {'learning_rate': [1,0.1,0.01],
-              'min_data_in_leaf': [10,100,1000],
-              'max_depth': [1,2,3,5,10],
+gpb_param_grid = {'learning_rate': [0.1,0.01],
+              'min_data_in_leaf': [10,100],
+              'max_depth': [2, 5],
               'lambda_l2': [0,1,10]}
 gpb_other_params = {'num_leaves': 2**10, 'verbose': 0}
+
+# xgboost
+xgb_params_grid = {'max_depth': [2, 3, 4],
+                   'learning_rate': [0.001,0.01, ],
+                   'n_estimators': [5, 10, 20, 100, 500, 1000],
+                   'subsample': [0.01, 0.1, 0.3],
+                   'colsample_bylevel': [0.01, 0.1, 0.3],
+                   'colsample_bytree': [0.01, 0.1, 0.3]}  # Muss evtl. weg!'early_stopping_rounds': [500]
 
 # Ensemble:
 ensemble_params_grid = {
@@ -277,6 +171,149 @@ def custom_masker(mask, x):
     out[0,0], out[0,1], out[0,2] = fold, group, session
     return out # in this simple example we just zero out the features we are masking
 
+def weighted_mean(data, weights):
+    return np.sum(data * weights) / np.sum(weights)
+def weighted_std(data, weights):
+    weighted_mean_val = weighted_mean(data, weights)
+    squared_diff = np.sum(weights * (data - weighted_mean_val)**2)
+    return np.sqrt(squared_diff / np.sum(weights))
+def mean_ci(sample, weights, limits="normal"): # normal is no limits, cor is [-1, 1], nrmse = [0, ], f1 = [0, 1]
+    mean = weighted_mean(sample, weights)
+    sd = weighted_std(sample, weights)
+    if limits=="bootstrap":
+        r = 1000
+        probabilities = weights / weights.sum()
+        monte_boot_mean = [np.mean(np.random.choice(np.array(sample), len(sample), probabilities.tolist())) for _ in range(r)]
+        mean_out = np.mean(monte_boot_mean)
+        lower = np.percentile(monte_boot_mean, 2.5)
+        upper = np.percentile(monte_boot_mean, 97.5)
+    if limits=="normal":
+        mean_out = mean
+        lower = mean-1.96*sd
+        upper = mean+1.96*sd
+    if limits=="cor":
+        mean_trans = (mean+1)/2
+        if mean_trans == 0: mean_trans=1e-7
+        try: L = math.log(mean_trans/(1-mean_trans))
+        except:L=1e7
+        sd_L = sd/(mean_trans*(1-mean_trans))
+        mean_out = math.exp(L)/(math.exp(L)+1)*2-1
+        lower = math.exp(L-1.96*sd_L*0.5)/(math.exp(L-1.96*sd_L*0.5)+1)*2-1
+        upper = math.exp(L+1.96*sd_L*0.5)/(math.exp(L+1.96*sd_L*0.5)+1)*2-1
+    if limits=="nrmse":
+
+        try: L = math.log(mean)
+        except: L=-1e7
+        sd_L = sd/mean
+        mean_out = mean
+        lower = math.exp(L - 1.96 * sd_L)
+        upper = math.exp(L + 1.96 * sd_L )
+    if limits=="f1":
+        if mean == 0: mean=1e-7
+        try: L = math.log(mean/(1-mean))
+        except: L=1e7
+        sd_L = sd/(mean*(1-mean))
+        mean_out = math.exp(L) / (math.exp(L) + 1)
+        lower = math.exp(L - 1.96 * sd_L) / (math.exp(L - 1.96 * sd_L) + 1)
+        upper = math.exp(L + 1.96 * sd_L) / (math.exp(L + 1.96 * sd_L) + 1)
+    return mean_out, lower, upper
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+# MUSS für jeden Datensatz nur einmal gemacht werden.
+
+base_path = r"C:\Users\clalk\Documents\PsyRes\Bern-Psychotherapeutenstudie\mixed Analysen"
+
+sub_folder_output = r"Out_Supervision_ges"
+# sub_folder_output = "data_mixed/Therapeut/Allianz"
+path = base_path
+os.chdir(path)
+print(path)
+
+classed_splits = False # Should splits be separated for the level 2? e.g., split on a therapist level for patient data
+df = pd.read_excel('Supervision_ges.xlsx') # Select excel file of the data
+#df = df.drop("Unnamed: 0", axis=1) # Is there a first column that needs to be eliminated?
+outcome = "SU14"  # What outcome should be predicted?
+outcome_list = ["SU14"] # Provide a list of all outcomes in the last columns? e.g., "hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges", "depression", "hscl10"
+outcome_to_features = [] # Which outcomes should become features? Outcomes that do not become features and are not selected as main outcome, will be removed
+
+# #Feature range prüfen
+'''
+We need a data set here that first contains the variable Class.
+This contains the patient code. Then comes the variable session. This 
+contains the session number. Then come the features. These can have any name. 
+Then come the targets, i.e. the dependent variables. These are entered in the list
+outcome_list.
+'''
+
+
+test_sets, val_sets = 10, 5 # Number of Test sets for outer cross-validation and Validation sets for inner cv
+
+# create prepared ml dataset
+df_id, df_ml, df_nested_cv = prepare.split_preparation(test_splits=test_sets, val_splits=val_sets, df=df,
+                                        outcome=outcome, outcome_list=outcome_list,
+                                        outcome_to_features=outcome_to_features, classed_splits=classed_splits)
+
+
+# Select and display output folder
+path = os.path.join(base_path, sub_folder_output)
+os.chdir(path)
+print(path)
+
+'''
+df_ml["hscl5_change"] = df_ml["hscl5"]-df_ml["hscl_aktuelle_sitzung"]
+del df_ml["hscl5"]
+del df_ml["hscl_aktuelle_sitzung"]
+'''
+
+# Save the prepared data in an excel with multiple sheets in the out_folder.
+writer = pd.ExcelWriter("ml_both_su.xlsx", engine="xlsxwriter")
+# Write each dataframe to a different worksheet.
+df_id.to_excel(writer, sheet_name="ID", index=False)
+df_ml.to_excel(writer, sheet_name="ML", index=False)
+df_nested_cv.to_excel(writer, sheet_name="CV", index=False)
+writer.close()
+# Close the Pandas Excel writer and output the Excel file.
+
+# With prepared data, start HERE!!! ------------------------------------------------------------------------------------
+# Select path
+base_path = r"C:\Users\clalk\Documents\PsyRes\Bern-Psychotherapeutenstudie\mixed Analysen"
+sub_folder_output = r"Out_Supervision"
+
+path = os.path.join(base_path, sub_folder_output)
+os.chdir(path)
+print(path)
+
+
+# Select the file, you can leave it if you just prepared the dataset
+filename = "ml_both_Supervision.xlsx"
+df_id = pd.read_excel(filename, sheet_name="ID") # ID besteht aus Class (=Patientencode) und session (Sitzungsnummer oder KAT)
+df_ml = pd.read_excel(filename, sheet_name="ML") # Die letzt Variable in ML ist automatisch das Target, der Rest sind Features
+df_nested_cv = pd.read_excel(filename, sheet_name="CV") # CV besteht aus dem Nested-cv-scheme, normalerweise 5 sets inner cv und 10 sets outer cv
+
+
+# Auswahl: "lasso", "e_net", "svr", "rf", "xgb", "gpb", "merf", "super". super works only if at least one other algorithm has been selected.
+classed_splits=False # Should splits be separated for the level 2? e.g., split on a therapist level for patient data
+Z_list = [] # Which variables should be modeled via random slope for level 2 variables
+run_list = ["merf", "super", "xgb", "e_net", "rf", "svr", "lasso", "gpb"] # Select the compething algorithms
+val_sets = len(set(df_nested_cv["fold_0"]))-1
+feature_selection = True # Should feature selection be conducted?
+outcome = df_ml.columns.tolist()[-1]
+xAI=True # Should SHAP be used to conduct model explanation?
+
+# Conduct inner cross-validation to select the best performing algorithms
+df_r, df_nrmse, all_params, best_algorithms = cv_fold.cv_with_arrays(df_ml=df_ml, df_cv=df_nested_cv,
+    val_splits=val_sets, run_list=run_list, feature_selection = feature_selection, series_group = df_id["Class"], classed=classed_splits, random_effects=Z_list)
+
+
+###############From here on there is model output!!!!#################################################
+path = os.path.join(base_path, sub_folder_output)
+os.chdir(path)
+print(path)
+df_r.to_excel('r-inner-fold.xlsx')
+df_nrmse.to_excel('Nrmse-inner-fold.xlsx')
+
+#------------------------------ Hyperparameter Tuning and final model (=EXTERNAL CROSS-VALIDATION)
 
 ################################################################
 last_feature = df_ml.columns.tolist()[-2]
@@ -287,10 +324,8 @@ dict_models = []
 id_list_super = []
 id_list = []
 X_list_super = []
-xAI=True # Soll das Modell erklärt werden?
 outcome = df_ml.columns.tolist()[-1]
-
-
+#best_algorithms = ["rf", "e_net", "merf", "merf", "e_net", "rf", "rf", "e_net", "rf", "svr"]
 
 for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehen
     print("Test fold: " + str(col))
@@ -315,6 +350,8 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
     Z_loc = [df_X_train.columns.get_loc(col) for col in Z_list]
     feature_list = df_X_train.columns.tolist()
     id_test = df_id.loc[df_nested_cv[col] == -1, :]
+    id_test["fold"] = i
+    id_test["learner"]=best_algorithms[i]
     dict_models.append({})
 
     # feature selection
@@ -375,11 +412,11 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
 
     if best_algorithms[i]=="lasso" or best_algorithms[i]=="super" and "lasso" in run_list:
         if not classed_splits:
-            super_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 0.7, 0.005)}, cv=5, scoring="r2",
+            super_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 2.0, 0.005)}, cv=5, scoring="r2",
                                      verbose=0, n_jobs=-1)
         else:
             gkf = list(GroupKFold(n_splits=5).split(X_train_a, y_train_a, group_train))
-            super_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 0.7, 0.005)}, cv=gkf,
+            super_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 2.0, 0.005)}, cv=gkf,
                                      scoring="r2", verbose=0, n_jobs=-1)
         results = super_lasso.fit(X_train_a, y_train_a)
         print(super_lasso.best_params_)
@@ -555,7 +592,7 @@ for i, col in enumerate(df_nested_cv.columns.tolist()):  # Jede spalte durchgehe
         else: explainer = shap.explainers.Permutation(dict_models[i][best_algorithms[i]].predict, masker=shap.sample(X_train_a, 100), max_evals=600)
         if not best_algorithms[i]=="super":
             id_list.append(id_test) # In der id_list werden alle ids, die nicht vom superlearner vorhergesagt werden, gespeichert.
-            if best_algorithms[i]=="rf" or best_algorithms[i]=="xgb":
+            if best_algorithms[i]=="rf" or best_algorithms[i]=="xgb" or best_algorithms[i]=="merf":
                 shaps.append(explainer(X_test_a, check_additivity=False))
             else:
                 shaps.append(explainer(X_test_a))
@@ -611,8 +648,27 @@ del outcome_dict["super_predicted"]
 
 # Save rs and Nrmses
 df_results = pd.DataFrame(
-    {"r": r_list, "nrmse": nrmse_list, "mae": mae_list, "learner": best_algorithms})
-df_results.to_excel('Results.xlsx')
+        {"fold": [i for i in range(df_nested_cv.shape[1])],
+        "n": [len(df_nested_cv.loc[df_nested_cv[col]==-1, "fold_0"]) for col in df_nested_cv.columns.tolist()],
+        "r": r_list,
+        "nrmse": nrmse_list,
+        "mae": mae_list,
+        "learner": best_algorithms})
+
+r_mean, r_lower, r_upper = mean_ci(df_results["r"], df_results["n"], limits = "bootstrap")
+nrmse_mean, nrmse_lower, nrmse_upper = mean_ci(df_results["nrmse"], df_results["n"], limits = "bootstrap")
+mae_mean, mae_lower, mae_upper = mean_ci(df_results["mae"], df_results["n"], limits = "bootstrap")
+
+df_results_short = pd.DataFrame({"Value": ["mean", "95% lower", "95% upper"],
+                                 "r": [r_mean, r_lower, r_upper],
+                                 "nrmse": [nrmse_mean, nrmse_lower, nrmse_upper],
+                                 "mae": [mae_mean, mae_lower, mae_upper]})
+
+writer = pd.ExcelWriter("Results.xlsx", engine="xlsxwriter")
+# Write each dataframe to a different worksheet.
+df_results.to_excel(writer, sheet_name="full results", index=False)
+df_results_short.to_excel(writer, sheet_name="short results", index=False)
+writer.close()
 
 # Save Beeswarm Plot
 if xAI == True:
@@ -627,11 +683,12 @@ if xAI == True:
     plt.show()
     shap.plots.heatmap(shap_values)
 
-    #shap.plots.scatter(shap_values[:, "words"])
-    #shap.plots.scatter(shap_values[:, "words"], color=shap_values[:, "overgeneralizing"])
+    #shap.plots.scatter(shap_values[:, "E3"], color=shap_values)
+    #shap.plots.scatter(shap_values[:, "SU5"], color=shap_values)
+
 
 #Save SHAP values
-df_id_data = pd.DataFrame(id_data, columns=["Class", "session"])
+df_id_data = pd.DataFrame(id_data, columns=["Class", "session", "fold", "learner"])
 df_outcome = pd.DataFrame(outcome_dict)
 if xAI == True:
     df_sh_values = pd.DataFrame(sh_values, columns=feature_list)
@@ -658,6 +715,34 @@ if xAI == True:
         {"Feature": feature_list, "SHAP-value": df_shap_values.iloc[0].tolist()})
     df_shap_values_new["percent_shap_value"] = df_shap_values_new["SHAP-value"] / df_shap_values_new[
         "SHAP-value"].sum() * 100
-    df_shap_values_new.to_excel('SHAP-IMPORTANCE.xlsx')
+    dict_cors = {}
+    n_rows = [len(df_id_data.loc[df_id_data["fold"]==fold, "fold"]) for fold in np.unique(df_id_data["fold"])]
+
+    for feature in df_sh_values.columns.tolist():
+        dict_cors[feature]=[]
+        for fold in np.unique(df_id_data["fold"]):
+            shap_slice = df_sh_values.loc[df_id_data["fold"]==fold, feature]
+            data_slice = df_sh_data.loc[df_id_data["fold"]==fold, feature]
+            try:
+                dict_cors[feature].append(cor(shap_slice.tolist(), data_slice.tolist()))
+            except:
+                dict_cors[feature].append(0)
+
+    df_cors = pd.DataFrame(dict_cors, index=range(len(best_algorithms)))
+    dict_cors = {}
+    for feature in df_cors.columns.tolist():
+        dict_cors[feature] = []
+        mean, lower_CI, higher_CI = mean_ci(df_cors[feature], np.array(n_rows), limits="bootstrap")
+        dict_cors[feature].append(mean)
+        dict_cors[feature].append(lower_CI)
+        dict_cors[feature].append(higher_CI)
+    df_cors_short = pd.DataFrame(dict_cors)
+    df_shap_values_new["mean r"]=df_cors_short.loc[0].tolist()
+    df_shap_values_new["lower 95%-CI"] = df_cors_short.loc[1].tolist()
+    df_shap_values_new["higher 95%-CI"] = df_cors_short.loc[2].tolist()
+    writer = pd.ExcelWriter("SHAP-IMPORTANCE.xlsx", engine="xlsxwriter")
+    df_shap_values_new.to_excel(writer, sheet_name="SHAP importance", index=False)
+    df_cors.to_excel(writer, sheet_name="Correlations", index=False)
+    writer.close()
 
 

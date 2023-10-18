@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, GroupKFold, StratifiedGroupKFold
+from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, GroupKFold
 from sklearn.linear_model import Lasso, ElasticNet
 from sklearn.svm import SVR
 from merf import MERF
@@ -17,8 +17,7 @@ import gpboost as gpb
 from featurewiz import FeatureWiz
 from sklearn import metrics
 import xgboost
-import shap
-import os
+
 from sklearn.metrics import make_scorer
 
 def cor(x, y):
@@ -82,8 +81,8 @@ likelihood = "gaussian"
 
 
 gpb_param_grid = {'learning_rate': [1,0.1,0.01],
-              'min_data_in_leaf': [10,100,1000],
-              'max_depth': [1,2,3,5,10],
+              'min_data_in_leaf': [10,100],
+              'max_depth': [2, 5],
               'lambda_l2': [0,1,10]}
 gpb_other_params = {'num_leaves': 2**10, 'verbose': 0}
 
@@ -223,10 +222,10 @@ def find_params_merf(X_valid, X_strain, y_valid, y_strain, group_strain, group_v
     return r, nrmse
 def find_params_lasso(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, classed=False, group_strain=[]):
 
-    if not classed: mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 0.7, 0.005)}, cv=5, scoring="r2", verbose=0, n_jobs=-1)
+    if not classed: mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 2.0, 0.005)}, cv=5, scoring="r2", verbose=0, n_jobs=-1)
     else:
         gkf = list(GroupKFold(n_splits=5).split(X_strain, y_strain, group_strain))
-        mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 0.7, 0.005)}, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
+        mod_lasso = GridSearchCV(lasso_pipeline, {"model__alpha": np.arange(0.02, 2.0, 0.005)}, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
 
     results = mod_lasso.fit(X_strain, y_strain)
     best_model = results.best_estimator_
