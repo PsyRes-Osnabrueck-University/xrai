@@ -1,4 +1,3 @@
-import json
 import scipy.stats
 import statistics
 import numpy as np
@@ -7,7 +6,7 @@ from sklearn.preprocessing import StandardScaler
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, GroupKFold
+from sklearn.model_selection import GridSearchCV, GroupKFold
 from sklearn.linear_model import Lasso, ElasticNet
 from sklearn.svm import SVR
 from merf import MERF
