@@ -1,39 +1,29 @@
-import json
 import scipy.stats
 import statistics
 import numpy as np
 import pandas as pd
-import xlsxwriter
 import matplotlib.pyplot as plt
-from typing import Tuple
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
 import math
 
 
-from sklearn.metrics import mean_squared_error, make_scorer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
 from sklearn.linear_model import Lasso, ElasticNet
 from sklearn.svm import SVR
 from sklearn.model_selection import GroupKFold
-from sklearn.exceptions import ConvergenceWarning
-import warnings
 import cv_fold
 import prepare
 
 import gpboost as gpb
-import random
 
 from featurewiz import FeatureWiz
 from sklearn import metrics
 import xgboost
 import shap
 import os
-import sys
 from merf import MERF
-from merf.utils import MERFDataGenerator
 
 def ensemble_predict(X_test):
     fold = X_test[:, 0]
@@ -222,19 +212,19 @@ def mean_ci(sample, weights, limits="normal"): # normal is no limits, cor is [-1
 #-----------------------------------------------------------------------------------------------------------------------
 # MUSS für jeden Datensatz nur einmal gemacht werden.
 
-base_path = r"C:\Users\clalk\Documents\PsyRes\Bern-Psychotherapeutenstudie\mixed Analysen"
+base_path = r"C:\Users\clalk\Documents\PsyRes\Bern-Psychotherapeutenstudie\mixed Analysen\!Workshop"
 
-sub_folder_output = r"Out_Supervision_ges"
+sub_folder_output = r"Out"
 # sub_folder_output = "data_mixed/Therapeut/Allianz"
 path = base_path
 os.chdir(path)
 print(path)
 
 classed_splits = False # Should splits be separated for the level 2? e.g., split on a therapist level for patient data
-df = pd.read_excel('Supervision_ges.xlsx') # Select excel file of the data
+df = pd.read_excel('change_process.xlsx') # Select excel file of the data
 #df = df.drop("Unnamed: 0", axis=1) # Is there a first column that needs to be eliminated?
-outcome = "SU14"  # What outcome should be predicted?
-outcome_list = ["SU14"] # Provide a list of all outcomes in the last columns? e.g., "hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges", "depression", "hscl10"
+outcome = "percent_change"  # What outcome should be predicted?
+outcome_list = ["percent_change"] # Provide a list of all outcomes in the last columns? e.g., "hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges", "depression", "hscl10"
 outcome_to_features = [] # Which outcomes should become features? Outcomes that do not become features and are not selected as main outcome, will be removed
 
 # #Feature range prüfen
@@ -247,7 +237,7 @@ outcome_list.
 '''
 
 
-test_sets, val_sets = 10, 5 # Number of Test sets for outer cross-validation and Validation sets for inner cv
+test_sets, val_sets = 3, 3 # Number of Test sets for outer cross-validation and Validation sets for inner cv
 
 # create prepared ml dataset
 df_id, df_ml, df_nested_cv = prepare.split_preparation(test_splits=test_sets, val_splits=val_sets, df=df,
@@ -267,7 +257,7 @@ del df_ml["hscl_aktuelle_sitzung"]
 '''
 
 # Save the prepared data in an excel with multiple sheets in the out_folder.
-writer = pd.ExcelWriter("ml_both_su.xlsx", engine="xlsxwriter")
+writer = pd.ExcelWriter("ml_both_change.xlsx", engine="xlsxwriter")
 # Write each dataframe to a different worksheet.
 df_id.to_excel(writer, sheet_name="ID", index=False)
 df_ml.to_excel(writer, sheet_name="ML", index=False)
@@ -295,7 +285,7 @@ df_nested_cv = pd.read_excel(filename, sheet_name="CV") # CV besteht aus dem Nes
 # Auswahl: "lasso", "e_net", "svr", "rf", "xgb", "gpb", "merf", "super". super works only if at least one other algorithm has been selected.
 classed_splits=False # Should splits be separated for the level 2? e.g., split on a therapist level for patient data
 Z_list = [] # Which variables should be modeled via random slope for level 2 variables
-run_list = ["merf", "super", "xgb", "e_net", "rf", "svr", "lasso", "gpb"] # Select the compething algorithms
+run_list = ["merf", "super", "xgb", "e_net", "svr", "lasso"] # Select the compething algorithms
 val_sets = len(set(df_nested_cv["fold_0"]))-1
 feature_selection = True # Should feature selection be conducted?
 outcome = df_ml.columns.tolist()[-1]
