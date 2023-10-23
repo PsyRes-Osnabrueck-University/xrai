@@ -8,7 +8,7 @@ def split_preparation(test_splits, val_splits, df, outcome, outcome_list, outcom
     df = pd.concat((df, df_outcome_to_features), axis=1)
     df[outcome] = y
     df = df.dropna()  # Missings fliegen raus!
-    df = df.reset_index()
+    df = df.reset_index(drop=True)
     if not classed_splits:
         test_kf = RepeatedKFold(n_splits=test_splits, n_repeats=1, random_state=42)
         val_kf = RepeatedKFold(n_splits=val_splits, n_repeats=1, random_state=42)

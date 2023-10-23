@@ -276,7 +276,7 @@ print(path)
 
 
 # Select the file, you can leave it if you just prepared the dataset
-filename = "ml_both_Supervision.xlsx"
+filename = "kv_patient_hscl0.xlsx"
 df_id = pd.read_excel(filename, sheet_name="ID") # ID besteht aus Class (=Patientencode) und session (Sitzungsnummer oder KAT)
 df_ml = pd.read_excel(filename, sheet_name="ML") # Die letzt Variable in ML ist automatisch das Target, der Rest sind Features
 df_nested_cv = pd.read_excel(filename, sheet_name="CV") # CV besteht aus dem Nested-cv-scheme, normalerweise 5 sets inner cv und 10 sets outer cv
@@ -285,7 +285,7 @@ df_nested_cv = pd.read_excel(filename, sheet_name="CV") # CV besteht aus dem Nes
 # Auswahl: "lasso", "e_net", "svr", "rf", "xgb", "gpb", "merf", "super". super works only if at least one other algorithm has been selected.
 classed_splits=False # Should splits be separated for the level 2? e.g., split on a therapist level for patient data
 Z_list = [] # Which variables should be modeled via random slope for level 2 variables
-run_list = ["merf", "super", "xgb", "e_net", "svr", "lasso"] # Select the compething algorithms
+run_list = ["merf", "super", "gpb"] # Select the compething algorithms
 val_sets = len(set(df_nested_cv["fold_0"]))-1
 feature_selection = True # Should feature selection be conducted?
 outcome = df_ml.columns.tolist()[-1]
