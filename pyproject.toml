@@ -1,0 +1,14 @@
+[project]
+name = "berTopic"
+version = "0.0.1"
+authors = [
+  { name="Christopher Lalk", email="clalk@example.com" },
+]
+description = ">>>>>Analysis package"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: >>>>>License",
+    "Operating System :: OS Independent",
+]
