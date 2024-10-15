@@ -78,7 +78,7 @@ kiwisolver==1.4.4
 libclang==16.0.0
 lightgbm==3.3.5
 littleutils==0.2.2
-llvmlite==0.39.1
+llvmlite==0.39.1        ## suggested update packages 0.43, as it works with python 3.12
 locket==1.0.0
 lxml==4.9.3
 Markdown==3.4.3

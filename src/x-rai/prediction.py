@@ -212,7 +212,7 @@ def mean_ci(sample, weights, limits="normal"): # normal is no limits, cor is [-1
 #-----------------------------------------------------------------------------------------------------------------------
 # MUSS für jeden Datensatz nur einmal gemacht werden.
 
-base_path = r"C:\Users\clalk\JLUbox\Transkriptanalysen\3 KOGNITIVE VERZERRUNGEN\Analysen"
+base_path = r"/mnt/DATA/ACAD/KPP_HiWi/BerTopic/src/"
 
 sub_folder_output = r"HSCL11_0"
 # sub_folder_output = "data_mixed/Therapeut/Allianz"
@@ -221,10 +221,10 @@ os.chdir(path)
 print(path)
 
 classed_splits = False # Should splits be separated for the level 2? e.g., split on a therapist level for patient data
-df = pd.read_excel('Verzerrungen_break_mean_5.xlsx') # Select excel file of the data
+df = pd.read_excel('distortions_final.xlsx') # Select excel file of the data
 #df = df.drop("Unnamed: 0", axis=1) # Is there a first column that needs to be eliminated?
-outcome = "hscl11"  # What outcome should be predicted?
-outcome_list = ["hscl11", "hscl11_5", "negative"] # Provide a list of all outcomes in the last columns? e.g., "hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges", "depression", "hscl10"
+outcome = "hscl"  # What outcome should be predicted?
+outcome_list = ["hscl"] # Provide a list of all outcomes in the last columns? e.g., "hscl_aktuelle_sitzung", "hscl_naechste_sitzung", "srs_ges", "depression", "hscl10"
 outcome_to_features = [] # Which outcomes should become features? Outcomes that do not become features and are not selected as main outcome, will be removed
 
 # #Feature range prüfen
