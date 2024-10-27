@@ -1,14 +1,43 @@
 [project]
-name = "berTopic"
+name = "x-rai"
 version = "0.0.1"
 authors = [
   { name="Christopher Lalk", email="clalk@example.com" },
 ]
 description = ">>>>>Analysis package"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: >>>>>License",
     "Operating System :: OS Independent",
+]
+
+# ADD NEW DEPENDENCIES HERE
+dependencies = [
+    "scipy,
+    "statistics",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "scikit-learn",
+    "gpboost",
+    "xgboost",
+    "shap",
+    "merf",
+    "openpyxl",
+    "xlsxwriter",
+    "featurewiz"",
+]
+
+[project.optional-dependencies]
+dev = [
+    "numpy",
+    "scikit-learn",
+]
+
+test = [
+    "pytest",
+    "hypothesis"
 ]
