@@ -31,6 +31,7 @@ from BerTopic.src.xrai.Preparation import Preparation
 from BerTopic.src.xrai.utils import split_preparation, identify_last_column, list_params, mean_ci, cor
 from BerTopic.src.xrai.cv_fold import cv_with_arrays
 
+
 class Transform:
     def __init__(self,
                  shaps=[],
@@ -44,7 +45,7 @@ class Transform:
                  id_list=[],
                  X_list_super=[],
                  dataPrepared=Preparation(base_path="/mnt/DATA/ACAD/KPP_HiWi/",
-                                        #   base_path=os.getcwd(),
+                                          #   base_path=os.getcwd(),
                                           file_name="distortions_final.xlsx",
                                           outcome=None,
                                           outcome_list=[],
@@ -487,7 +488,7 @@ class Transform:
                     else:
                         shaps.append(explainer(X_test_a))
 
-        if dataPrepared.xAI==True:
+        if dataPrepared.xAI == True:
             # Concatenate id and SHAP data from all prediction except super
             if any(model != "super" for model in dataPrepared.best_algorithms):
                 id_data = np.concatenate(id_list, axis=0)
@@ -495,70 +496,175 @@ class Transform:
                 bs_values = shaps[0].base_values
                 sh_data = shaps[0].data
                 for i in range(1, len(shaps)):
-                    sh_values = np.concatenate((sh_values, np.array(shaps[i].values)), axis=0)
-                    bs_values = np.concatenate((bs_values, np.array(shaps[i].base_values)), axis=0)
-                    sh_data = np.concatenate((sh_data, np.array(shaps[i].data)), axis=0)
+                    sh_values = np.concatenate(
+                        (sh_values, np.array(shaps[i].values)), axis=0)
+                    bs_values = np.concatenate(
+                        (bs_values, np.array(shaps[i].base_values)), axis=0)
+                    sh_data = np.concatenate(
+                        (sh_data, np.array(shaps[i].data)), axis=0)
             # Calculation superlearner SHAP values
             if "super" in dataPrepared.best_algorithms:
                 id_super = pd.concat(id_list_super, ignore_index=True)
                 X_test_super = pd.concat(X_list_super, ignore_index=True)
-                explainer = shap.explainers.Permutation(ensemble_predict, masker=utils.custom_masker, seed=1234, max_evals=600) # max_evals should be double the size of prediction + error(3)
-                shaps=[]
+                # max_evals should be double the size of prediction + error(3)
+                explainer = shap.explainers.Permutation(
+                    self.ensemble_predict, masker=utils.custom_masker, seed=1234, max_evals=600)
+                shaps = []
                 X_super = X_test_super.values
                 shaps.append(explainer(X_super))
                 # Concatenate superlearner shap values
-                start=0
+                start = 0
                 if sh_values is None:
                     sh_values = shaps[0].values[:, 3:]
                     bs_values = shaps[0].base_values
                     sh_data = shaps[0].data[:, 3:]
-                    start=1
+                    start = 1
                 for i in range(start, len(shaps)):
-                    sh_values = np.concatenate((sh_values, np.array(shaps[i].values[:, 3:])), axis=0)
-                    bs_values = np.concatenate((bs_values, np.array(shaps[i].base_values).reshape(-1,)), axis=0)
-                    sh_data = np.concatenate((sh_data, np.array(shaps[i].data[:, 3:])), axis=0)
-                if id_data is None: id_data = id_super.values
-                else: id_data = np.concatenate((id_data, np.array(id_super.values)))
+                    sh_values = np.concatenate(
+                        (sh_values, np.array(shaps[i].values[:, 3:])), axis=0)
+                    bs_values = np.concatenate((bs_values, np.array(
+                        shaps[i].base_values).reshape(-1,)), axis=0)
+                    sh_data = np.concatenate(
+                        (sh_data, np.array(shaps[i].data[:, 3:])), axis=0)
+                if id_data is None:
+                    id_data = id_super.values
+                else:
+                    id_data = np.concatenate(
+                        (id_data, np.array(id_super.values)))
 
-            shap_values = shap.Explanation(values=sh_values,
-                                        base_values=bs_values, data=sh_data,
-                                        feature_names=feature_list)
+            self.shap_values = shap.Explanation(values=sh_values,
+                                                base_values=bs_values, data=sh_data,
+                                                feature_names=feature_list)
 
-        outcome_dict["true"]=np.concatenate(outcome_dict["true"], axis=0)
-        outcome_dict["predicted"]=np.concatenate(outcome_dict["predicted"], axis=0)
+        outcome_dict["true"] = np.concatenate(outcome_dict["true"], axis=0)
+        outcome_dict["predicted"] = np.concatenate(
+            outcome_dict["predicted"], axis=0)
 
         if "super" in dataPrepared.best_algorithms:
-            outcome_dict["super_true"]=np.concatenate(outcome_dict["super_true"], axis=0)
-            outcome_dict["super_predicted"]=np.concatenate(outcome_dict["super_predicted"], axis=0)
-            outcome_dict["true"]=np.concatenate((outcome_dict["true"], outcome_dict["super_true"]), axis=0)
-            outcome_dict["predicted"]=np.concatenate((outcome_dict["predicted"], outcome_dict["super_predicted"]), axis=0)
+            outcome_dict["super_true"] = np.concatenate(
+                outcome_dict["super_true"], axis=0)
+            outcome_dict["super_predicted"] = np.concatenate(
+                outcome_dict["super_predicted"], axis=0)
+            outcome_dict["true"] = np.concatenate(
+                (outcome_dict["true"], outcome_dict["super_true"]), axis=0)
+            outcome_dict["predicted"] = np.concatenate(
+                (outcome_dict["predicted"], outcome_dict["super_predicted"]), axis=0)
         del outcome_dict["super_true"]
         del outcome_dict["super_predicted"]
 
         # Save rs and Nrmses
         df_results = pd.DataFrame(
-                {"fold": [i for i in range(dataPrepared.df_nested_cv.shape[1])],
-                "n": [len(dataPrepared.df_nested_cv.loc[dataPrepared.df_nested_cv[col]==-1, "fold_0"]) for col in dataPrepared.df_nested_cv.columns.tolist()],
-                "r": r_list,
-                "nrmse": nrmse_list,
-                "mae": mae_list,
-                "learner": dataPrepared.best_algorithms})
+            {"fold": [i for i in range(dataPrepared.df_nested_cv.shape[1])],
+                "n": [len(dataPrepared.df_nested_cv.loc[dataPrepared.df_nested_cv[col] == -1, "fold_0"]) for col in dataPrepared.df_nested_cv.columns.tolist()],
+             "r": r_list,
+             "nrmse": nrmse_list,
+             "mae": mae_list,
+             "learner": dataPrepared.best_algorithms})
 
-        r_mean, r_lower, r_upper = mean_ci(df_results["r"], df_results["n"], limits = "bootstrap")
-        nrmse_mean, nrmse_lower, nrmse_upper = mean_ci(df_results["nrmse"], df_results["n"], limits = "bootstrap")
-        mae_mean, mae_lower, mae_upper = mean_ci(df_results["mae"], df_results["n"], limits = "bootstrap")
+        r_mean, r_lower, r_upper = mean_ci(
+            df_results["r"], df_results["n"], limits="bootstrap")
+        nrmse_mean, nrmse_lower, nrmse_upper = mean_ci(
+            df_results["nrmse"], df_results["n"], limits="bootstrap")
+        mae_mean, mae_lower, mae_upper = mean_ci(
+            df_results["mae"], df_results["n"], limits="bootstrap")
 
         df_results_short = pd.DataFrame({"Value": ["mean", "95% lower", "95% upper"],
                                         "r": [r_mean, r_lower, r_upper],
-                                        "nrmse": [nrmse_mean, nrmse_lower, nrmse_upper],
-                                        "mae": [mae_mean, mae_lower, mae_upper]})
-        writer = pd.ExcelWriter(os.path.join(dataPrepared.output_path, "Results.xlsx"), engine="xlsxwriter")
+                                         "nrmse": [nrmse_mean, nrmse_lower, nrmse_upper],
+                                         "mae": [mae_mean, mae_lower, mae_upper]})
+        writer = pd.ExcelWriter(os.path.join(
+            dataPrepared.output_path, "Results.xlsx"), engine="xlsxwriter")
         # Write each dataframe to a different worksheet.
         df_results.to_excel(writer, sheet_name="full results", index=False)
-        df_results_short.to_excel(writer, sheet_name="short results", index=False)
+        df_results_short.to_excel(
+            writer, sheet_name="short results", index=False)
         writer.close()
 
+        # Save SHAP values
+        df_id_data = pd.DataFrame(
+            id_data, columns=["Class", "session", "fold", "learner"])
+        df_outcome = pd.DataFrame(outcome_dict)
+        if dataPrepared.xAI == True:
+            df_sh_values = pd.DataFrame(sh_values, columns=feature_list)
+            df_bs_values = pd.DataFrame(bs_values)
+            df_sh_data = pd.DataFrame(sh_data, columns=feature_list)
+
+        writer = pd.ExcelWriter("OUT.xlsx", engine="xlsxwriter")
+        # Write each dataframe to a different worksheet.
+        df_id_data.to_excel(writer, sheet_name="id", index=False)
+        if dataPrepared.xAI == True:
+            df_sh_values.to_excel(writer, sheet_name="sh_values", index=False)
+            df_bs_values.to_excel(writer, sheet_name="bs_values", index=False)
+            df_sh_data.to_excel(writer, sheet_name="sh_data", index=False)
+        df_outcome.to_excel(writer, sheet_name="Outcome", index=False)
+        pd.DataFrame(feature_list, columns=["Feature_names"]).to_excel(
+            writer, sheet_name="Features", index=False)
+        writer.close()
+
+        # SHAP IMPORTANCE values
+        if dataPrepared.xAI == True:
+            global_shap_values = np.abs(self.shap_values.values).mean(0)
+            df_shap_values = pd.DataFrame(
+                global_shap_values.reshape(-1, len(global_shap_values)), columns=feature_list)
+
+            df_shap_values_new = pd.DataFrame(
+                {"Feature": feature_list, "SHAP-value": df_shap_values.iloc[0].tolist()})
+            df_shap_values_new["percent_shap_value"] = df_shap_values_new["SHAP-value"] / df_shap_values_new[
+                "SHAP-value"].sum() * 100
+            dict_cors = {}
+            n_rows = [len(df_id_data.loc[df_id_data["fold"] == fold, "fold"])
+                      for fold in np.unique(df_id_data["fold"])]
+
+            for feature in df_sh_values.columns.tolist():
+                dict_cors[feature] = []
+                for fold in np.unique(df_id_data["fold"]):
+                    shap_slice = df_sh_values.loc[df_id_data["fold"]
+                                                  == fold, feature]
+                    data_slice = df_sh_data.loc[df_id_data["fold"]
+                                                == fold, feature]
+                    try:
+                        dict_cors[feature].append(
+                            cor(shap_slice.tolist(), data_slice.tolist()))
+                    except:
+                        dict_cors[feature].append(0)
+
+            df_cors = pd.DataFrame(
+                dict_cors, index=range(len(dataPrepared.best_algorithms)))
+            dict_cors = {}
+            for feature in df_cors.columns.tolist():
+                dict_cors[feature] = []
+                mean, lower_CI, higher_CI = mean_ci(
+                    df_cors[feature], np.array(n_rows), limits="bootstrap")
+                dict_cors[feature].append(mean)
+                dict_cors[feature].append(lower_CI)
+                dict_cors[feature].append(higher_CI)
+            df_cors_short = pd.DataFrame(dict_cors)
+            df_shap_values_new["mean r"] = df_cors_short.loc[0].tolist()
+            df_shap_values_new["lower 95%-CI"] = df_cors_short.loc[1].tolist()
+            df_shap_values_new["higher 95%-CI"] = df_cors_short.loc[2].tolist()
+            writer = pd.ExcelWriter(
+                "SHAP-IMPORTANCE.xlsx", engine="xlsxwriter")
+            df_shap_values_new.to_excel(
+                writer, sheet_name="SHAP importance", index=False)
+            df_cors.to_excel(writer, sheet_name="Correlations", index=False)
+            writer.close()
+
         pass
+
+    def gen_plots(self):
+        shap.summary_plot(self.shap_values, plot_size=(25, 15), max_display=15)
+
+        shap.summary_plot(self.shap_values, plot_size=(
+            25, 15), max_display=15, show=False)
+        plt.savefig('summary_plot.png')
+        plt.show()
+        shap.plots.waterfall(self.shap_values[10], max_display=20, show=False)
+        plt.gcf().set_size_inches(50, 15)
+        plt.savefig('waterfall_plot.png')
+        plt.show()
+        shap.plots.heatmap(self.shap_values)
+        plt.savefig('heatmap.png')
+        return 0
 
     def ensemble_predict(self, X_test):
         fold = X_test[:, 0]
@@ -568,31 +674,33 @@ class Transform:
         for i in range(len(block_start_indices) - 1):
             start = block_start_indices[i]
             end = block_start_indices[i + 1]
-            block_values = X_test[start:end,:]
+            block_values = X_test[start:end, :]
             block_arrays.append(block_values)
         y_list = []
         for idx, X in enumerate(block_arrays):
             yhat_list = []
             index = round(float(fold[block_start_indices[idx]]))
-            group_test=X[:, 1]
-            X=X[:, 3:]
+            group_test = X[:, 1]
+            X = X[:, 3:]
             for model in dict_models[index]:
                 if model != "gpb" and model != "merf" and model != "super":
-                    yhat_list.append(dict_models[index][model].predict(X).reshape(-1,1))
+                    yhat_list.append(
+                        dict_models[index][model].predict(X).reshape(-1, 1))
                 elif model == "gpb":
                     pred = dict_models[index][model].predict(data=np.delete(X, Z_loc, axis=1), group_data_pred=group_test,
-                                                            group_rand_coef_data_pred=X[:, Z_loc],
-                                    predict_var=True, pred_latent=False)
+                                                             group_rand_coef_data_pred=X[:, Z_loc],
+                                                             predict_var=True, pred_latent=False)
                     yhat = pred["response_mean"].reshape(-1, 1)
                     yhat_list.append(yhat)
                 elif model == "merf":
                     z = np.array([1] * len(X)).reshape(-1, 1)
                     z = np.hstack([z, X[:, Z_loc]]).astype(float)
                     group_test = pd.Series(group_test.reshape(-1,))
-                    yhat = dict_models[index][model].predict(X=np.delete(X, Z_loc, axis=1), Z=z, clusters=group_test)
+                    yhat = dict_models[index][model].predict(
+                        X=np.delete(X, Z_loc, axis=1), Z=z, clusters=group_test)
                     yhat_list.append(yhat.reshape(-1, 1))
             meta_X_test = np.hstack(yhat_list)
             y_pred = dict_models[index]["super"].predict(meta_X_test)
-            y_list.append(y_pred.reshape(-1,1))
+            y_list.append(y_pred.reshape(-1, 1))
         y = np.array(np.concatenate(y_list, axis=0))
         return y
