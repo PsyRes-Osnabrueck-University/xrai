@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-base_path = "C:/Users/clalk/JLUbox/Transkriptanalysen/3 KOGNITIVE VERZERRUNGEN/Analysen/"
+base_path = "/mnt/DATA/ACAD/KPP_HiWi/"
 
 sub_folder_output = "HSCL11_0"# oder "srs" oder "hscl_nächste_sitzung
 
