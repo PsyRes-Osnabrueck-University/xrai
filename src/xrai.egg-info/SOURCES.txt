@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+src/setup.py
+src/xrai/Preparation.py
+src/xrai/__init__.py
+src/xrai/bertopic1.py
+src/xrai/classification.py
+src/xrai/cv_fold.py
+src/xrai/fit_transform.py
+src/xrai/n-gramm distortions.py
+src/xrai/plots.py
+src/xrai/transform.py
+src/xrai/utils.py
+src/xrai.egg-info/PKG-INFO
+src/xrai.egg-info/SOURCES.txt
+src/xrai.egg-info/dependency_links.txt
+src/xrai.egg-info/top_level.txt
