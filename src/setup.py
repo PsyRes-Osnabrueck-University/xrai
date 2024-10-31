@@ -22,5 +22,5 @@ setup(
     author="Christopher Lalk",
     author_email="your_email@example.com",
     description="A package that reads an Excel file and sums all the columns",
-    url="https://github.com/your-username/excel-column-sum",
+    url="https://github.com/chrislalk/xrai",
 )
