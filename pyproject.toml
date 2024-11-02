@@ -1,0 +1,43 @@
+[project]
+name = "x-rai"
+version = "0.0.1"
+authors = [
+  { name="Christopher Lalk", email="clalk@example.com" },
+]
+description = ">>>>>Analysis package"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: >>>>>License",
+    "Operating System :: OS Independent",
+]
+
+# ADD NEW DEPENDENCIES HERE
+dependencies = [
+    "scipy==1.14.1",
+    "statistics==1.0.3.5",
+    "numpy==2.0.2",
+    "pandas==2.2.3",
+    "matplotlib==3.9.2",
+    "scikit-learn==1.5.2",
+    "gpboost==1.5.3",
+    "xgboost==1.7.6",
+    "shap==0.46.0",
+    "merf==1.0",
+    "openpyxl==3.1.5",
+    "XlsxWriter==3.2.0",
+    "featurewiz @ git+https://github.com/AutoViML/featurewiz.git@2fab4170382b698114935f7b0842f36ebcaa51c0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "numpy",
+    "scikit-learn",
+]
+
+test = [
+    "pytest",
+    "hypothesis"
+]
