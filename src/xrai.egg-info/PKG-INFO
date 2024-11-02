@@ -1,3 +1,75 @@
 Metadata-Version: 2.1
 Name: xrai
 Version: 0.0.0
+Summary: SHAP
+Maintainer-email: scikit-learn developers <scikit-learn@python.org>
+Project-URL: homepage, https://scikit-learn.org
+Project-URL: source, https://github.com/scikit-learn/scikit-learn
+Project-URL: download, https://pypi.org/project/scikit-learn/#files
+Project-URL: tracker, https://github.com/scikit-learn/scikit-learn/issues
+Project-URL: release notes, https://scikit-learn.org/stable/whats_new
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development
+Classifier: Topic :: Scientific/Engineering
+Classifier: Development Status :: Ongoing
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Unix
+Classifier: Operating System :: MacOS
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: scipy
+Requires-Dist: statistics
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: matplotlib
+Requires-Dist: scikit-learn
+Requires-Dist: gpboost
+Requires-Dist: xgboost
+Requires-Dist: shap
+Requires-Dist: merf
+Requires-Dist: openpyxl
+Requires-Dist: xlsxwriter
+Requires-Dist: featurewiz
+Provides-Extra: install
+Requires-Dist: scipy; extra == "install"
+Requires-Dist: statistics; extra == "install"
+Requires-Dist: numpy; extra == "install"
+Requires-Dist: pandas; extra == "install"
+Requires-Dist: matplotlib; extra == "install"
+Requires-Dist: scikit-learn; extra == "install"
+Requires-Dist: gpboost; extra == "install"
+Requires-Dist: xgboost; extra == "install"
+Requires-Dist: shap; extra == "install"
+Requires-Dist: merf; extra == "install"
+Requires-Dist: openpyxl; extra == "install"
+Requires-Dist: xlsxwriter; extra == "install"
+Requires-Dist: featurewiz; extra == "install"
+Provides-Extra: benchmark
+Requires-Dist: scipy; extra == "benchmark"
+Requires-Dist: statistics; extra == "benchmark"
+Requires-Dist: numpy; extra == "benchmark"
+Requires-Dist: pandas; extra == "benchmark"
+Requires-Dist: matplotlib; extra == "benchmark"
+Requires-Dist: scikit-learn; extra == "benchmark"
+Requires-Dist: gpboost; extra == "benchmark"
+Requires-Dist: xgboost; extra == "benchmark"
+Requires-Dist: shap; extra == "benchmark"
+Requires-Dist: merf; extra == "benchmark"
+Requires-Dist: openpyxl; extra == "benchmark"
+Requires-Dist: xlsxwriter; extra == "benchmark"
+Requires-Dist: featurewiz; extra == "benchmark"
+
+## Project descriptions
+**XRAI (eXplanable Regression-based Artificial Intelligence)** is a package for the integration of regression-based machine-learning and eXplainable AI via the SHAP-package. XRAI allows the prediction of a target variable via several ML algorithms from scikit-learn (Lasso, Elastic Net, Random Forest, Support Vector Regression, XGBoost, and a Support Vector Regression meta-learner). Algorithm selection is conducted via nested cross-validation.
+
+Specifications can be selected regarding the internal and external folds, the selected algorithms and the use of feature selection via featureWiz. The cross-validation scheme can be safed for reproductibility. SHAP allows the estimation of feature importance both for individual predictions, as well as across the whole dataset.   
+
