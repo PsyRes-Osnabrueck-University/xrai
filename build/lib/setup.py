@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="excel-column-sum",
+    name="xrai",
     version="0.1",
     packages=find_packages(),
     install_requires=[
@@ -20,7 +20,7 @@ setup(
     "featurewiz",
 ],
     author="Christopher Lalk",
-    author_email="your_email@example.com",
+    author_email="clalk@example.com",
     description="A package that reads an Excel file and sums all the columns",
     url="https://github.com/chrislalk/xrai",
 )

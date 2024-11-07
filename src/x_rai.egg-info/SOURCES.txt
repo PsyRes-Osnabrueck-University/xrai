@@ -7,6 +7,7 @@ src/x_rai.egg-info/dependency_links.txt
 src/x_rai.egg-info/requires.txt
 src/x_rai.egg-info/top_level.txt
 src/xrai/Preparation.py
+src/xrai/XRAI.py
 src/xrai/__init__.py
 src/xrai/bertopic1.py
 src/xrai/classification.py

@@ -1,26 +1,40 @@
 Metadata-Version: 2.1
 Name: x-rai
 Version: 0.0.1
-Summary: >>>>>Analysis package
+Summary: **XRAI (eXplanable Regression-based Artificial Intelligence)** is a package for the integration of regression-based machine-learning and eXplainable AI via the SHAP-package.
 Author-email: Christopher Lalk <clalk@example.com>
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Psychology Research
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development
+Classifier: Topic :: Scientific/Engineering
+Classifier: Development Status :: Ongoing
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Unix
+Classifier: Operating System :: MacOS
 Classifier: Programming Language :: Python :: 3
-Classifier: License :: OSI Approved :: >>>>>License
-Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
-Requires-Dist: scipy==1.14.1
-Requires-Dist: statistics==1.0.3.5
-Requires-Dist: numpy==2.0.2
-Requires-Dist: pandas==2.2.3
-Requires-Dist: matplotlib==3.9.2
-Requires-Dist: scikit-learn==1.5.2
-Requires-Dist: gpboost==1.5.3
-Requires-Dist: xgboost==1.7.6
-Requires-Dist: shap==0.46.0
-Requires-Dist: merf==1.0
-Requires-Dist: openpyxl==3.1.5
-Requires-Dist: XlsxWriter==3.2.0
 Requires-Dist: featurewiz@ git+https://github.com/AutoViML/featurewiz.git@2fab4170382b698114935f7b0842f36ebcaa51c0
+Requires-Dist: gpboost==1.5.3
+Requires-Dist: matplotlib==3.9.2
+Requires-Dist: merf==1.0
+Requires-Dist: numpy==2.0.2
+Requires-Dist: openpyxl==3.1.5
+Requires-Dist: pandas==2.2.3
+Requires-Dist: scikit-learn==1.5.2
+Requires-Dist: scipy==1.14.1
+Requires-Dist: shap==0.46.0
+Requires-Dist: statistics==1.0.3.5
+Requires-Dist: xgboost==1.7.6
+Requires-Dist: XlsxWriter==3.2.0
 Provides-Extra: dev
 Requires-Dist: numpy; extra == "dev"
 Requires-Dist: scikit-learn; extra == "dev"
