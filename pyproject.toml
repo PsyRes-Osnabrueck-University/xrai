@@ -1,5 +1,5 @@
 [project]
-name = "x-rai"
+name = "xrai"
 version = "0.0.1"
 authors = [
   { name="Christopher Lalk", email="clalk@example.com" },

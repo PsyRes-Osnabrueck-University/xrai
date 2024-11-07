@@ -24,7 +24,7 @@ import shap
 import os
 from merf import MERF
 
-from xrai.utils import split_preparation, identify_last_column
+from xrai.utils import split_preparation, identify_last_column, cor, mean_ci, list_params
 from xrai.cv_fold import cv_with_arrays
 
 
@@ -112,6 +112,58 @@ class XRAI:
         y = np.array(np.concatenate(y_list, axis=0))
         return y
     
+    def create_folds(self,
+                     Z_list=[],
+                     # Select the compething algorithms
+                     run_list=["merf", "super", "gpb"],
+                     val_sets=5,
+                     feature_selection=True,  # Should feature selection be conducted?
+                     xAI=True
+                     ):
+
+        self.feature_selection = feature_selection
+        self.xAI = xAI
+        self.Z_list = Z_list
+        self.run_list = run_list
+
+        output_dir = self.output_path
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        os.chdir(output_dir)
+
+        # Save the prepared data in an excel with multiple sheets in the out_folder.
+        output_file_name = f"processed_output_{self.outcome}.xlsx"
+        output_file_path = os.path.join(output_dir, output_file_name)
+
+        writer = pd.ExcelWriter(output_file_path, engine="xlsxwriter")
+        # Write each dataframe to a different worksheet.
+        self.df_id.to_excel(writer, sheet_name="ID", index=False)
+        self.df_ml.to_excel(writer, sheet_name="ML", index=False)
+        self.df_nested_cv.to_excel(writer, sheet_name="CV", index=False)
+        writer.close()
+
+        sub_folder_output = os.path.join(
+            output_dir, "Out_Supervision")
+        if not os.path.exists(sub_folder_output):
+            os.makedirs(sub_folder_output)
+        os.chdir(sub_folder_output)
+
+        val_sets = len(set(self.df_nested_cv["fold_0"]))-1
+
+        df_r, df_nrmse, self.all_params, self.best_algorithms = cv_with_arrays(df_ml=self.df_ml,
+                                                                               df_cv=self.df_nested_cv,
+                                                                               val_splits=val_sets,
+                                                                               run_list=run_list,
+                                                                               feature_selection=feature_selection,
+                                                                               series_group=self.df_id["Class"],
+                                                                               classed=self.classed_splits,
+                                                                               random_effects=Z_list)
+
+        df_r.to_excel('r-inner-fold.xlsx')
+        df_nrmse.to_excel('Nrmse-inner-fold.xlsx')
+
+        return True
+
     def fit(self,
             Z_list=[],
             # Select the compething algorithms
@@ -169,8 +221,7 @@ class XRAI:
                     r_list=[],
                     nrmse_list=[],
                     mae_list=[],
-                    outcome_dict={"true": [], "predicted": [],
-                    "super_true": [], "super_predicted": []},
+                    outcome_dict={"true": [], "predicted": [], "super_true": [], "super_predicted": []},
                     dict_models=[],
                     id_list_super=[],
                     id_list=[],
@@ -600,7 +651,7 @@ class XRAI:
                         merf.trained_fe_model, data=shap.sample(X_train_a, 100))
                 else:
                     explainer = shap.explainers.Permutation(
-                        dict_models[i][self.best_algorithms[i]].predict, masker=shap.sample(X_train_a, 100), max_evals=600)
+                        dict_models[i][self.best_algorithms[i]].predict, masker=shap.sample(X_train_a, 100), max_evals=2015)
                 if not self.best_algorithms[i] == "super":
                     # In der id_list werden alle ids, die nicht vom superlearner vorhergesagt werden, gespeichert.
                     id_list.append(id_test)
@@ -831,6 +882,10 @@ class XRAI:
         self.transform()
         return True
 
-    def load(self,
-            path): #paths to output folder
-        return True
+    # def load(self,
+    #          output_folder,
+    #          df_r=path,
+    #          df_nrmse=path,
+    #          best_algorithm=None,
+    #         path): #paths to output folder
+    #     return True

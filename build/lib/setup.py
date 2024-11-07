@@ -20,7 +20,7 @@ setup(
     "featurewiz",
 ],
     author="Christopher Lalk",
-    author_email="clalk@example.com",
-    description="A package that reads an Excel file and sums all the columns",
-    url="https://github.com/chrislalk/xrai",
+    author_email="christopher.lalk@uni-osnabrueck.de",
+    description="XRAI (eXplanable Regression-based Artificial Intelligence): integration of regression-based machine-learning and eXplainable AI via the SHAP-package",
+    url="https://github.com/PsyRes-Osnabrueck-University/xrai",
 )

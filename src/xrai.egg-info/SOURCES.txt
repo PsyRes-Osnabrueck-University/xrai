@@ -2,6 +2,7 @@ README.md
 pyproject.toml
 src/setup.py
 src/xrai/Preparation.py
+src/xrai/XRAI.py
 src/xrai/__init__.py
 src/xrai/bertopic1.py
 src/xrai/classification.py
