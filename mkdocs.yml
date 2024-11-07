@@ -5,7 +5,7 @@ site_name: eXplainable Regression based AI
 repo_url: 'https://github.com/PsyRes-Osnabrueck-University/xrai'
 
 nav:
-- Home: 'Basic Usage.ipynb'
+- Home: 'docs/Basic Usage.ipynb'
 # - Quickstart: 'quickstart.md'
 # - Examples:
 #   - Basic Usage: 'Basic Usage.ipynb'
