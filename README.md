@@ -26,6 +26,8 @@ transformer.gen_plots()
 
 This produces plots as follows: 
 ### SHAP summary plot
-![SHAP summary plot]
-![SHAP waterfall plot]
-![SHAP Heatmap plot]
+![SHAP summary plot](https://github.com/PsyRes-Osnabrueck-University/xrai/blob/fdd2e1ed3634170229fc6124847c115ce4c6f063/images/heatmap.png)
+
+![SHAP waterfall plot](https://github.com/PsyRes-Osnabrueck-University/xrai/blob/fdd2e1ed3634170229fc6124847c115ce4c6f063/images/waterfall_plot.png)
+
+![SHAP Heatmap plot](https://github.com/PsyRes-Osnabrueck-University/xrai/blob/fdd2e1ed3634170229fc6124847c115ce4c6f063/images/heatmap.png)
