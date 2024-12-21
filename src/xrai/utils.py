@@ -76,15 +76,15 @@ def split_preparation(test_splits,
         df["ID"][i] = str(df["Class"][i]) + "_" + str(df["session"][i])
     columns = df.columns.tolist()
     a_data = df.values
-    print(df["ID"])
+    # print(df["ID"])
 
     if not classed_splits:
         for outer_fold, (train_index, test_index) in enumerate(test_kf.split(a_data)):  #
             a_train, a_test = a_data[train_index], a_data[test_index]
-            print(outer_fold)
+            # print(outer_fold)
             inner_fold = 0
             for strain_index, valid_index in val_kf.split(a_train):
-                print(inner_fold)
+                # print(inner_fold)
                 a_strain, a_valid = a_train[strain_index], a_train[valid_index]
                 df_valid = pd.DataFrame(a_valid, columns=columns)
                 df.loc[df['ID'].isin(df_valid["ID"]),
@@ -95,10 +95,10 @@ def split_preparation(test_splits,
         #
         for outer_fold, (train_index, test_index) in enumerate(test_kf.split(a_data, groups=df["Class"])):
             a_train, a_test = a_data[train_index], a_data[test_index]
-            print(outer_fold)
+            # print(outer_fold)
             inner_fold = 0
             for strain_index, valid_index in val_kf.split(a_train, groups=a_train[:, 0]):
-                print(inner_fold)
+                # print(inner_fold)
                 a_strain, a_valid = a_train[strain_index], a_train[valid_index]
                 df_valid = pd.DataFrame(a_valid, columns=columns)
                 df.loc[df['ID'].isin(df_valid["ID"]),

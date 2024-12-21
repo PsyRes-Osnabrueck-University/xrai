@@ -124,7 +124,7 @@ def find_params_xgb(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, clas
     colsample_bytrees = np.linspace(0.05, 0.5, 3)
     colsample_bylevel = np.linspace(0.05, 0.5, 3)
 
-    print(results.best_params_)
+    # print(results.best_params_)
     # merge into full param dicts
 
     params_dict = results.best_params_
@@ -140,7 +140,7 @@ def find_params_xgb(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, clas
         clf = GridSearchCV(estimator=xgbr, param_grid=params_dict, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
 
     results = clf.fit(X_strain, y_strain, verbose=10)
-    print(results.best_params_)
+    # print(results.best_params_)
 
     learning_rates = np.logspace(-5, -0.1, 7)
     params_dict = results.best_params_
@@ -153,7 +153,7 @@ def find_params_xgb(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, clas
         clf = GridSearchCV(estimator=xgbr, param_grid=params_dict, cv=gkf, scoring="r2", verbose=0, n_jobs=-1)
 
     results = clf.fit(X_strain, y_strain, verbose=10)
-    print(results.best_params_)
+    # print(results.best_params_)
 
     best_model = clf.best_estimator_
 
@@ -168,8 +168,8 @@ def find_params_xgb(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, clas
         params["xgb"] = [results.best_params_]
         r["xgb"] = [cor(y_valid, xgb_pred)]
         nrmse["xgb"] = [metrics.mean_squared_error(y_valid, xgb_pred, squared=False) / statistics.stdev(y_valid)]
-    print("XGB_nrmse: " + str(nrmse["xgb"][-1]))
-    print("XGB_r: " + str(r["xgb"][-1]))
+    # print("XGB_nrmse: " + str(nrmse["xgb"][-1]))
+    # print("XGB_r: " + str(r["xgb"][-1]))
     return params, r, nrmse
 
 
@@ -194,8 +194,8 @@ def find_params_rf(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, class
         params["rf"] = [results.best_params_]
         r["rf"] = [cor(y_valid, rf_pred)]
         nrmse["rf"] = [metrics.mean_squared_error(y_valid, rf_pred, squared=False) / statistics.stdev(y_valid)]
-    print("RF_nrmse: " + str(nrmse["rf"][-1]))
-    print("RF_r: " + str(r["rf"][-1]))
+    # print("RF_nrmse: " + str(nrmse["rf"][-1]))
+    # print("RF_r: " + str(r["rf"][-1]))
     return params, r, nrmse
 
 def find_params_merf(X_valid, X_strain, y_valid, y_strain, group_strain, group_valid, random_effects, r, nrmse):
@@ -216,8 +216,8 @@ def find_params_merf(X_valid, X_strain, y_valid, y_strain, group_strain, group_v
     else:
         r["merf"] = [cor(y_valid, merf_pred)]
         nrmse["merf"] = [metrics.mean_squared_error(y_valid, merf_pred, squared=False) / statistics.stdev(y_valid)]
-    print("merf_nrmse: " + str(nrmse["merf"][-1]))
-    print("merf_r: " + str(r["merf"][-1]))
+    # print("merf_nrmse: " + str(nrmse["merf"][-1]))
+    # print("merf_r: " + str(r["merf"][-1]))
     return r, nrmse
 def find_params_lasso(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, classed=False, group_strain=[]):
 
@@ -239,8 +239,8 @@ def find_params_lasso(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, cl
         params["lasso"] = [results.best_params_]
         r["lasso"] = [cor(y_valid, lasso_pred)]
         nrmse["lasso"] = [metrics.mean_squared_error(y_valid, lasso_pred, squared=False) / statistics.stdev(y_valid)]
-    print("Lasso_nrmse: " + str(nrmse["lasso"][-1]))
-    print("Lasso_r: " + str(r["lasso"][-1]))
+    # print("Lasso_nrmse: " + str(nrmse["lasso"][-1]))
+    # print("Lasso_r: " + str(r["lasso"][-1]))
     return params, r, nrmse
 
 
@@ -265,9 +265,9 @@ def find_params_e_net(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, cl
         params["e_net"] = [results.best_params_]
         r["e_net"] = [cor(y_valid, e_net_pred)]
         nrmse["e_net"] = [metrics.mean_squared_error(y_valid, e_net_pred, squared=False) / statistics.stdev(y_valid)]
-    print("E_net_nrmse: " + str(nrmse["e_net"][-1]))
-    print("E_net_r: " + str(r["e_net"][-1]))
-    print("E_net_params: " + str(params["e_net"][-1]))
+    # print("E_net_nrmse: " + str(nrmse["e_net"][-1]))
+    # print("E_net_r: " + str(r["e_net"][-1]))
+    # print("E_net_params: " + str(params["e_net"][-1]))
     return params, r, nrmse
 
 
@@ -285,7 +285,7 @@ def find_params_gpb(X_valid, X_strain, y_valid, y_strain, group_strain, group_va
                                                  use_gp_model_for_validation=True, verbose_eval=0, early_stopping_rounds=10,
                                                  num_boost_round=200)
 
-    print(opt_params)
+    # print(opt_params)
     bst = gpb.train(params=opt_params['best_params'], train_set=data_train,
                     gp_model=gp_model, num_boost_round=200)
     if random_effects:
@@ -305,9 +305,9 @@ def find_params_gpb(X_valid, X_strain, y_valid, y_strain, group_strain, group_va
         params["gpb"] = [opt_params['best_params']]
         r["gpb"] = [cor(y_valid, pred_gpb)]
         nrmse["gpb"] = [metrics.mean_squared_error(y_valid, pred_gpb, squared=False) / statistics.stdev(y_valid)]
-    print("GPB_nrmse: " + str(nrmse["gpb"][-1]))
-    print("GPB_r: " + str(r["gpb"][-1]))
-    print("GPB_params: " + str(params["gpb"][-1]))
+    # print("GPB_nrmse: " + str(nrmse["gpb"][-1]))
+    # print("GPB_r: " + str(r["gpb"][-1]))
+    # print("GPB_params: " + str(params["gpb"][-1]))
     return params, r, nrmse
 
 def find_params_svr(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, classed=False, group_strain=[]):
@@ -333,9 +333,9 @@ def find_params_svr(X_valid, X_strain, y_valid, y_strain, params, r, nrmse, clas
         params["svr"] = [results.best_params_]
         r["svr"] = [cor(y_valid, svr_pred)]
         nrmse["svr"] = [metrics.mean_squared_error(y_valid, svr_pred, squared=False) / statistics.stdev(y_valid)]
-    print("SVR_nrmse: " + str(nrmse["svr"][-1]))
-    print("SVR_r: " + str(r["svr"][-1]))
-    print("SVR_params: " + str(params["svr"][-1]))
+    # print("SVR_nrmse: " + str(nrmse["svr"][-1]))
+    # print("SVR_r: " + str(r["svr"][-1]))
+    # print("SVR_params: " + str(params["svr"][-1]))
     return params, r, nrmse
 
 
@@ -446,9 +446,9 @@ def SuperLearner_fun(X_valid, X_strain, y_valid, y_strain, r, nrmse, params, run
         params["super"] = [results.best_params_]
         r["super"] = [cor(y_valid, ensemble_pred)]
         nrmse["super"] = [metrics.mean_squared_error(y_valid, ensemble_pred, squared=False) / statistics.stdev(y_valid)]
-    print("Super_nrmse: " + str(nrmse["super"][-1]))
-    print("Super_r: " + str(r["super"][-1]))
-    print("Super_params: " + str(params["super"][-1]))
+    # print("Super_nrmse: " + str(nrmse["super"][-1]))
+    # print("Super_r: " + str(r["super"][-1]))
+    # print("Super_params: " + str(params["super"][-1]))
     return params, r, nrmse
 
 
@@ -463,7 +463,7 @@ def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, 
     df_r = pd.DataFrame()
     df_nrmse = pd.DataFrame()
     for col in range(df_cv.shape[1]):  # Jede spalte durchgehen
-        print("Test fold: " + str(col))
+        # print("Test fold: " + str(col))
         for inner_fold in range(val_splits):  # jede Zeile durchgehen
             df_valid = df_ml[df_cv.iloc[:, col] == inner_fold]  # X_valid erstellen
             df_strain = df_ml[(df_cv.iloc[:, col] != inner_fold) & (df_cv.iloc[:, col] != -1)]  # X strain ist ungleich x_valid und ungleich x_test
@@ -485,7 +485,7 @@ def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, 
 
             Z_loc = [X_strain.columns.get_loc(col) for col in random_effects]
             X_strain_selected, X_valid_selected, y_strain, y_valid = X_strain.values, X_valid.values, y_strain.values, y_valid.values
-            print("Validation Fold: " + str(inner_fold))
+            # print("Validation Fold: " + str(inner_fold))
 
             if "lasso" in run_list: all_params_dict, r_dict, nrmse_dict= find_params_lasso(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, params=all_params_dict, r=r_dict, nrmse=nrmse_dict, classed=classed, group_strain=group_strain)
             if "gpb" in run_list and not series_group.empty: all_params_dict, r_dict, nrmse_dict = find_params_gpb(X_valid=X_valid_selected, X_strain=X_strain_selected, y_valid=y_valid, y_strain=y_strain, group_valid=group_valid, group_strain=group_strain, random_effects=Z_loc, params=all_params_dict, r=r_dict, nrmse=nrmse_dict)
@@ -500,10 +500,10 @@ def cv_with_arrays(df_ml, df_cv, val_splits, run_list, feature_selection=False, 
             mean_r[model_name] = np.mean(r_dict[model_name][-val_splits:])
             z_r[model_name] = np.mean(r_dict[model_name][-val_splits:]) / np.std(r_dict[model_name][-val_splits:])
             mean_nrmse[model_name] = np.mean(nrmse_dict[model_name][-val_splits:])
-            print(model_name + " mean r: " + str(mean_r[model_name]))
-            print(model_name + "mean nrmse: " + str(mean_nrmse[model_name]))
-        print(mean_r)
-        print(z_r)
+        #     print(model_name + " mean r: " + str(mean_r[model_name]))
+        #     print(model_name + "mean nrmse: " + str(mean_nrmse[model_name]))
+        # print(mean_r)
+        # print(z_r)
         best_algorithms.append(sorted(mean_r, key=lambda key: mean_r[key])[-1])
 
     for model_name in run_list:                  # Alle rs und nrmses sammeln in jeweils einem df
