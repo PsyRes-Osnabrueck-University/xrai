@@ -143,7 +143,7 @@ mod_meta = GridSearchCV(
 
 fwiz = FeatureWiz(
     # corr_limit=0.8,
-    corr_limit=80, # featurewiz has selected %s as the correlation limit. Change this limit to fit your needs
+    corr_limit=80,  # featurewiz has selected %s as the correlation limit. Change this limit to fit your needs
     feature_engg="",
     category_encoders="",
     dask_xgboost_flag=False,
@@ -369,47 +369,47 @@ def find_params_merf(
     r,
     nrmse,
 ):
-    with open("find_params_merf.txt", 'w') as f:
-            # Redirect stdout to the file
-            original_stdout = sys.stdout
-            sys.stdout = f      
-            z = np.array([1] * len(X_strain)).reshape(-1, 1)
-            z = np.hstack([z, X_strain[:, random_effects]])
-            y_strain = y_strain.reshape(
-                -1,
-            )
-            group_strain = group_strain.reset_index(drop=True)
-            group_valid = group_valid.reset_index(drop=True)
-            merf.fit(
-                X=np.delete(X_strain, random_effects, axis=1),
-                Z=z,
-                clusters=group_strain,
-                y=y_strain,
-            )
+    with open("find_params_merf.txt", "w") as f:
+        # Redirect stdout to the file
+        original_stdout = sys.stdout
+        sys.stdout = f
+        z = np.array([1] * len(X_strain)).reshape(-1, 1)
+        z = np.hstack([z, X_strain[:, random_effects]])
+        y_strain = y_strain.reshape(
+            -1,
+        )
+        group_strain = group_strain.reset_index(drop=True)
+        group_valid = group_valid.reset_index(drop=True)
+        merf.fit(
+            X=np.delete(X_strain, random_effects, axis=1),
+            Z=z,
+            clusters=group_strain,
+            y=y_strain,
+        )
 
-            z = np.array([1] * len(X_valid)).reshape(-1, 1)
-            z = np.hstack([z, X_valid[:, random_effects]])
-            merf_pred = merf.predict(
-                X=np.delete(X_valid, random_effects, axis=1), Z=z, clusters=group_valid
+        z = np.array([1] * len(X_valid)).reshape(-1, 1)
+        z = np.hstack([z, X_valid[:, random_effects]])
+        merf_pred = merf.predict(
+            X=np.delete(X_valid, random_effects, axis=1), Z=z, clusters=group_valid
+        )
+        y_valid = y_valid.reshape(
+            -1,
+        )
+        if "merf" in r:
+            r["merf"].append(cor(y_valid, merf_pred))
+            nrmse["merf"].append(
+                metrics.mean_squared_error(y_valid, merf_pred, squared=False)
+                / statistics.stdev(y_valid)
             )
-            y_valid = y_valid.reshape(
-                -1,
-            )
-            if "merf" in r:
-                r["merf"].append(cor(y_valid, merf_pred))
-                nrmse["merf"].append(
-                    metrics.mean_squared_error(y_valid, merf_pred, squared=False)
-                    / statistics.stdev(y_valid)
-                )
-            else:
-                r["merf"] = [cor(y_valid, merf_pred)]
-                nrmse["merf"] = [
-                    metrics.mean_squared_error(y_valid, merf_pred, squared=False)
-                    / statistics.stdev(y_valid)
-                ]
-            # print("merf_nrmse: " + str(nrmse["merf"][-1]))
-            # print("merf_r: " + str(r["merf"][-1]))
-            sys.stdout = original_stdout
+        else:
+            r["merf"] = [cor(y_valid, merf_pred)]
+            nrmse["merf"] = [
+                metrics.mean_squared_error(y_valid, merf_pred, squared=False)
+                / statistics.stdev(y_valid)
+            ]
+        # print("merf_nrmse: " + str(nrmse["merf"][-1]))
+        # print("merf_r: " + str(r["merf"][-1]))
+        sys.stdout = original_stdout
     return r, nrmse
 
 

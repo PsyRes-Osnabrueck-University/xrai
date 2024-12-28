@@ -13,6 +13,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSe
 from sklearn.linear_model import Lasso, ElasticNet
 from sklearn.svm import SVR
 from sklearn.model_selection import GroupKFold
+
 # import BerTopic.src.xrai.transform as transform
 
 import gpboost as gpb
@@ -30,16 +31,17 @@ from xrai.cv_fold import cv_with_arrays
 
 class Preparation:
 
-    def __init__(self,
-                 base_path=os.getcwd(),
-                 file_name='sample.xlsx',
-                 outcome=None,
-                 outcome_list=[],
-                 classed_splits=False,
-                 outcome_to_features=[],
-                 test_sets=10,
-                 val_sets=5
-                 ) -> None:
+    def __init__(
+        self,
+        base_path=os.getcwd(),
+        file_name="sample.xlsx",
+        outcome=None,
+        outcome_list=[],
+        classed_splits=False,
+        outcome_to_features=[],
+        test_sets=10,
+        val_sets=5,
+    ) -> None:
 
         self.base_path = base_path
         self.file_name = file_name
@@ -62,20 +64,21 @@ class Preparation:
             self.outcome = identify_last_column(self.df)
 
         # create prepared ml dataset
-        self.df_id, self.df_ml, self.df_nested_cv = split_preparation(test_splits=self.test_sets,
-                                                                      val_splits=self.val_sets,
-                                                                      df=self.df,
-                                                                      outcome=self.outcome,
-                                                                      outcome_list=self.outcome_list,
-                                                                      outcome_to_features=self.outcome_to_features,
-                                                                      classed_splits=self.classed_splits
-                                                                      )
+        self.df_id, self.df_ml, self.df_nested_cv = split_preparation(
+            test_splits=self.test_sets,
+            val_splits=self.val_sets,
+            df=self.df,
+            outcome=self.outcome,
+            outcome_list=self.outcome_list,
+            outcome_to_features=self.outcome_to_features,
+            classed_splits=self.classed_splits,
+        )
 
         pass
 
     def ensemble_predict(X_test):
         fold = X_test[:, 0]
-        change_id = np.where(fold[1:] != fold[:-1])[0]+1
+        change_id = np.where(fold[1:] != fold[:-1])[0] + 1
         block_start_indices = [0] + change_id.tolist() + [len(fold)]
         block_arrays = []
         for i in range(len(block_start_indices) - 1):
@@ -92,19 +95,29 @@ class Preparation:
             for model in dict_models[index]:
                 if model != "gpb" and model != "merf" and model != "super":
                     yhat_list.append(
-                        dict_models[index][model].predict(X).reshape(-1, 1))
+                        dict_models[index][model].predict(X).reshape(-1, 1)
+                    )
                 elif model == "gpb":
-                    pred = dict_models[index][model].predict(data=np.delete(X, Z_loc, axis=1), group_data_pred=group_test,
-                                                             group_rand_coef_data_pred=X[:, Z_loc],
-                                                             predict_var=True, pred_latent=False)
+                    pred = dict_models[index][model].predict(
+                        data=np.delete(X, Z_loc, axis=1),
+                        group_data_pred=group_test,
+                        group_rand_coef_data_pred=X[:, Z_loc],
+                        predict_var=True,
+                        pred_latent=False,
+                    )
                     yhat = pred["response_mean"].reshape(-1, 1)
                     yhat_list.append(yhat)
                 elif model == "merf":
                     z = np.array([1] * len(X)).reshape(-1, 1)
                     z = np.hstack([z, X[:, Z_loc]]).astype(float)
-                    group_test = pd.Series(group_test.reshape(-1,))
+                    group_test = pd.Series(
+                        group_test.reshape(
+                            -1,
+                        )
+                    )
                     yhat = dict_models[index][model].predict(
-                        X=np.delete(X, Z_loc, axis=1), Z=z, clusters=group_test)
+                        X=np.delete(X, Z_loc, axis=1), Z=z, clusters=group_test
+                    )
                     yhat_list.append(yhat.reshape(-1, 1))
             meta_X_test = np.hstack(yhat_list)
             y_pred = dict_models[index]["super"].predict(meta_X_test)
@@ -112,14 +125,15 @@ class Preparation:
         y = np.array(np.concatenate(y_list, axis=0))
         return y
 
-    def create_folds(self,
-                     Z_list=[],
-                     # Select the compething algorithms
-                     run_list=["merf", "super", "gpb"],
-                     val_sets=5,
-                     feature_selection=True,  # Should feature selection be conducted?
-                     xAI=True
-                     ):
+    def create_folds(
+        self,
+        Z_list=[],
+        # Select the compething algorithms
+        run_list=["merf", "super", "gpb"],
+        val_sets=5,
+        feature_selection=True,  # Should feature selection be conducted?
+        xAI=True,
+    ):
 
         self.feature_selection = feature_selection
         self.xAI = xAI
@@ -142,24 +156,25 @@ class Preparation:
         self.df_nested_cv.to_excel(writer, sheet_name="CV", index=False)
         writer.close()
 
-        sub_folder_output = os.path.join(
-            output_dir, "Out_Supervision")
+        sub_folder_output = os.path.join(output_dir, "Out_Supervision")
         if not os.path.exists(sub_folder_output):
             os.makedirs(sub_folder_output)
         os.chdir(sub_folder_output)
 
-        val_sets = len(set(self.df_nested_cv["fold_0"]))-1
+        val_sets = len(set(self.df_nested_cv["fold_0"])) - 1
 
-        df_r, df_nrmse, self.all_params, self.best_algorithms = cv_with_arrays(df_ml=self.df_ml,
-                                                                               df_cv=self.df_nested_cv,
-                                                                               val_splits=val_sets,
-                                                                               run_list=run_list,
-                                                                               feature_selection=feature_selection,
-                                                                               series_group=self.df_id["Class"],
-                                                                               classed=self.classed_splits,
-                                                                               random_effects=Z_list)
+        df_r, df_nrmse, self.all_params, self.best_algorithms = cv_with_arrays(
+            df_ml=self.df_ml,
+            df_cv=self.df_nested_cv,
+            val_splits=val_sets,
+            run_list=run_list,
+            feature_selection=feature_selection,
+            series_group=self.df_id["Class"],
+            classed=self.classed_splits,
+            random_effects=Z_list,
+        )
 
-        df_r.to_excel('r-inner-fold.xlsx')
-        df_nrmse.to_excel('Nrmse-inner-fold.xlsx')
+        df_r.to_excel("r-inner-fold.xlsx")
+        df_nrmse.to_excel("Nrmse-inner-fold.xlsx")
 
         return True
