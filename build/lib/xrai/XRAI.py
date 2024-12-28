@@ -78,7 +78,7 @@ class XRAI:
         with open("ensemble_predict.txt", 'w') as f:
             # Redirect stdout to the file
             original_stdout = sys.stdout
-            sys.stdout = f  
+            sys.stdout = f
             fold = X_test[:, 0]
             change_id = np.where(fold[1:] != fold[:-1])[0]+1
             block_start_indices = [0] + change_id.tolist() + [len(fold)]
@@ -115,6 +115,7 @@ class XRAI:
                 y_pred = dict_models[index]["super"].predict(meta_X_test)
                 y_list.append(y_pred.reshape(-1, 1))
             y = np.array(np.concatenate(y_list, axis=0))
+            sys.stdout = original_stdout
         return y
     
     def create_folds(self,
@@ -329,7 +330,7 @@ class XRAI:
             mod_meta = GridSearchCV(estimator=svr_pipeline, param_grid=ensemble_params_grid, cv=5,
                                     scoring="r2", verbose=0, n_jobs=-1)
 
-            fwiz = FeatureWiz(corr_limit=0.8, feature_engg='', category_encoders='',
+            fwiz = FeatureWiz(corr_limit=0.7, feature_engg='', category_encoders='',
                             dask_xgboost_flag=False, nrows=None, verbose=0)
 
             self.create_folds(Z_list=[],
