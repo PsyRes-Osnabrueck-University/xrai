@@ -39,7 +39,6 @@ from xrai.utils import (
 
 
 class XRAI:
-
     def __init__(
         self,
         base_path=os.getcwd(),
@@ -49,9 +48,9 @@ class XRAI:
         classed_splits=False,
         outcome_to_features=[],
         test_sets=10,
+        run_list=["merf", "super", "gpb"],
         val_sets=5,
     ) -> None:
-
         self.base_path = base_path
         self.file_name = file_name
         self.outcome = outcome
@@ -60,6 +59,7 @@ class XRAI:
         self.outcome_to_features = outcome_to_features
         self.test_sets = test_sets
         self.val_sets = val_sets
+        self.run_list = run_list
 
         self.output_path = os.path.join(self.base_path, "output")
 
@@ -106,9 +106,7 @@ class XRAI:
                     X = X[:, 3:]
                     for model in dict_models[index]:
                         if model != "gpb" and model != "merf" and model != "super":
-                            yhat_list.append(
-                                dict_models[index][model].predict(X).reshape(-1, 1)
-                            )
+                            yhat_list.append(dict_models[index][model].predict(X).reshape(-1, 1))
                         elif model == "gpb":
                             pred = dict_models[index][model].predict(
                                 data=np.delete(X, Z_loc, axis=1),
@@ -141,7 +139,7 @@ class XRAI:
         self,
         Z_list=[],
         # Select the compething algorithms
-        run_list=["merf", "super", "gpb"],
+        run_list=None,
         val_sets=5,
         feature_selection=True,  # Should feature selection be conducted?
         xAI=True,
@@ -149,11 +147,13 @@ class XRAI:
         with open("create_folds.txt", "w") as f:
             # Redirect stdout to the file
             with redirect_stdout(f):
-
                 self.feature_selection = feature_selection
                 self.xAI = xAI
                 self.Z_list = Z_list
-                self.run_list = run_list
+                if run_list == None:
+                    run_list = self.run_list
+                else:
+                    self.run_list = run_list
 
                 output_dir = self.output_path
                 if not os.path.exists(output_dir):
@@ -203,7 +203,7 @@ class XRAI:
         self,
         Z_list=[],
         # Select the compething algorithms
-        run_list=["merf", "super", "gpb"],
+        run_list=None,
         val_sets=5,
         feature_selection=True,  # Should feature selection be conducted?
         xAI=True,
@@ -211,11 +211,13 @@ class XRAI:
         with open("fit.txt", "w") as f:
             # Redirect stdout to the file
             with redirect_stdout(f):
-
                 self.feature_selection = feature_selection
                 self.xAI = xAI
                 self.Z_list = Z_list
-                self.run_list = run_list
+                if run_list == None:
+                    run_list = self.run_list
+                else:
+                    self.run_list = run_list
 
                 output_dir = self.output_path
                 if not os.path.exists(output_dir):
@@ -277,9 +279,7 @@ class XRAI:
         with open("transform_output.txt", "w") as f:
             # Redirect stdout to the file
             with redirect_stdout(f):
-                xgbr = xgboost.XGBRegressor(
-                    seed=20, objective="reg:squarederror", booster="gbtree"
-                )
+                xgbr = xgboost.XGBRegressor(seed=20, objective="reg:squarederror", booster="gbtree")
 
                 lasso_pipeline = Pipeline(
                     [("scaler", StandardScaler()), ("model", Lasso(random_state=42))]
@@ -427,7 +427,7 @@ class XRAI:
 
                 self.create_folds(
                     Z_list=[],
-                    run_list=["merf", "super", "gpb"],
+                    run_list=self.run_list,
                     val_sets=5,
                     feature_selection=True,
                     xAI=True,
@@ -438,19 +438,11 @@ class XRAI:
                 # Jede spalte durchgehen
                 for i, col in enumerate(self.df_nested_cv.columns.tolist()):
                     # print("Test fold: " + str(col))
-                    df_y_train = self.df_ml.loc[
-                        self.df_nested_cv[col] != -1, [self.outcome]
-                    ]
-                    df_y_test = self.df_ml.loc[
-                        self.df_nested_cv[col] == -1, [self.outcome]
-                    ]
+                    df_y_train = self.df_ml.loc[self.df_nested_cv[col] != -1, [self.outcome]]
+                    df_y_test = self.df_ml.loc[self.df_nested_cv[col] == -1, [self.outcome]]
 
-                    df_X_train = self.df_ml.loc[
-                        self.df_nested_cv[col] != -1, :last_feature
-                    ]
-                    df_X_test = self.df_ml.loc[
-                        self.df_nested_cv[col] == -1, :last_feature
-                    ]
+                    df_X_train = self.df_ml.loc[self.df_nested_cv[col] != -1, :last_feature]
+                    df_X_test = self.df_ml.loc[self.df_nested_cv[col] == -1, :last_feature]
 
                     df_fiX_train = df_X_train.drop(self.Z_list, axis=1)
                     df_fiX_test = df_X_test.drop(self.Z_list, axis=1)
@@ -458,17 +450,11 @@ class XRAI:
                     df_Z_train = df_X_train[self.Z_list]
                     df_Z_test = df_X_test[self.Z_list]
 
-                    group_train = self.df_id.loc[
-                        self.df_nested_cv[col] != -1, ["Class"]
-                    ]
+                    group_train = self.df_id.loc[self.df_nested_cv[col] != -1, ["Class"]]
                     group_test = self.df_id.loc[self.df_nested_cv[col] == -1, ["Class"]]
 
-                    session_train = self.df_id.loc[
-                        self.df_nested_cv[col] != -1, ["session"]
-                    ]
-                    session_test = self.df_id.loc[
-                        self.df_nested_cv[col] == -1, ["session"]
-                    ]
+                    session_train = self.df_id.loc[self.df_nested_cv[col] != -1, ["session"]]
+                    session_test = self.df_id.loc[self.df_nested_cv[col] == -1, ["session"]]
 
                     Z_loc = [df_X_train.columns.get_loc(col) for col in self.Z_list]
                     feature_list = df_X_train.columns.tolist()
@@ -506,7 +492,6 @@ class XRAI:
                         or self.best_algorithms[i] == "super"
                         and "svr" in self.run_list
                     ):
-
                         if not self.classed_splits:
                             super_svr = GridSearchCV(
                                 estimator=svr_pipeline,
@@ -518,9 +503,7 @@ class XRAI:
                             )
                         else:
                             gkf = list(
-                                GroupKFold(n_splits=5).split(
-                                    X_train_a, y_train_a, group_train
-                                )
+                                GroupKFold(n_splits=5).split(X_train_a, y_train_a, group_train)
                             )
                             super_svr = GridSearchCV(
                                 estimator=svr_pipeline,
@@ -578,9 +561,7 @@ class XRAI:
                             )
                         else:
                             gkf = list(
-                                GroupKFold(n_splits=5).split(
-                                    X_train_a, y_train_a, group_train
-                                )
+                                GroupKFold(n_splits=5).split(X_train_a, y_train_a, group_train)
                             )
                             super_e_net = GridSearchCV(
                                 e_net_pipeline,
@@ -631,9 +612,7 @@ class XRAI:
                             )
                         else:
                             gkf = list(
-                                GroupKFold(n_splits=5).split(
-                                    X_train_a, y_train_a, group_train
-                                )
+                                GroupKFold(n_splits=5).split(X_train_a, y_train_a, group_train)
                             )
                             super_lasso = GridSearchCV(
                                 lasso_pipeline,
@@ -673,7 +652,6 @@ class XRAI:
                         or self.best_algorithms[i] == "super"
                         and "rf" in self.run_list
                     ):
-
                         if not self.classed_splits:
                             super_rf = GridSearchCV(
                                 estimator=rf,
@@ -685,9 +663,7 @@ class XRAI:
                             )
                         else:
                             gkf = list(
-                                GroupKFold(n_splits=5).split(
-                                    X_train_a, y_train_a, group_train
-                                )
+                                GroupKFold(n_splits=5).split(X_train_a, y_train_a, group_train)
                             )
                             super_rf = GridSearchCV(
                                 estimator=rf,
@@ -749,9 +725,7 @@ class XRAI:
                             )
                         else:
                             gkf = list(
-                                GroupKFold(n_splits=5).split(
-                                    X_train_a, y_train_a, group_train
-                                )
+                                GroupKFold(n_splits=5).split(X_train_a, y_train_a, group_train)
                             )
                             super_xgb = GridSearchCV(
                                 estimator=xgbr,
@@ -852,9 +826,7 @@ class XRAI:
                                 likelihood="gaussian",
                             )
                         else:
-                            gp_model = gpb.GPModel(
-                                group_data=group_train, likelihood="gaussian"
-                            )
+                            gp_model = gpb.GPModel(group_data=group_train, likelihood="gaussian")
 
                         data_train = gpb.Dataset(data=fiX_train_a, label=y_train_a)
                         opt_params = gpb.grid_search_tune_parameters(
@@ -891,9 +863,7 @@ class XRAI:
                             -1,
                         )
                         group_train = group_train.reset_index(drop=True).squeeze()
-                        merf.fit(
-                            X=fiX_train_a, Z=z, clusters=group_train, y=y_train_merf
-                        )
+                        merf.fit(X=fiX_train_a, Z=z, clusters=group_train, y=y_train_merf)
                         dict_models[i]["merf"] = merf
 
                     yhat_train, yhat_test = [], []
@@ -973,9 +943,7 @@ class XRAI:
                             )
                         else:
                             gkf = list(
-                                GroupKFold(n_splits=5).split(
-                                    meta_X_train, y_train_a, group_train
-                                )
+                                GroupKFold(n_splits=5).split(meta_X_train, y_train_a, group_train)
                             )
                             mod_meta = GridSearchCV(
                                 estimator=svr_pipeline,
@@ -1012,12 +980,8 @@ class XRAI:
                     # hier wird der SHAP-Explainer aufgerufen, um die jeweiligen ML-Modelle zu erklären:
                     if self.xAI == True:
                         if self.best_algorithms[i] == "super":
-                            df_X_test.insert(
-                                loc=0, column="fold", value=[i] * len(df_X_test)
-                            )
-                            df_X_test.insert(
-                                loc=1, column="Class", value=group_test.tolist()
-                            )
+                            df_X_test.insert(loc=0, column="fold", value=[i] * len(df_X_test))
+                            df_X_test.insert(loc=1, column="Class", value=group_test.tolist())
                             df_X_test.insert(
                                 loc=2,
                                 column="session",
@@ -1027,10 +991,7 @@ class XRAI:
                             id_list_super.append(id_test)
                             X_list_super.append(df_X_test)
 
-                        elif (
-                            self.best_algorithms[i] == "rf"
-                            or self.best_algorithms[i] == "xgb"
-                        ):
+                        elif self.best_algorithms[i] == "rf" or self.best_algorithms[i] == "xgb":
                             model_estimator = dict_models[i][
                                 self.best_algorithms[i]
                             ].best_estimator_
@@ -1038,9 +999,7 @@ class XRAI:
                                 model_estimator, data=shap.sample(X_train_a, 100)
                             )
                         elif self.best_algorithms[i] == "gpb":
-                            explainer = shap.TreeExplainer(
-                                bst, data=shap.sample(X_train_a, 100)
-                            )
+                            explainer = shap.TreeExplainer(bst, data=shap.sample(X_train_a, 100))
                         elif self.best_algorithms[i] == "merf":
                             explainer = shap.TreeExplainer(
                                 merf.trained_fe_model, data=shap.sample(X_train_a, 100)
@@ -1059,9 +1018,7 @@ class XRAI:
                                 or self.best_algorithms[i] == "xgb"
                                 or self.best_algorithms[i] == "merf"
                             ):
-                                shaps.append(
-                                    explainer(X_test_a, check_additivity=False)
-                                )
+                                shaps.append(explainer(X_test_a, check_additivity=False))
                             else:
                                 shaps.append(explainer(X_test_a))
 
@@ -1079,9 +1036,7 @@ class XRAI:
                             bs_values = np.concatenate(
                                 (bs_values, np.array(shaps[i].base_values)), axis=0
                             )
-                            sh_data = np.concatenate(
-                                (sh_data, np.array(shaps[i].data)), axis=0
-                            )
+                            sh_data = np.concatenate((sh_data, np.array(shaps[i].data)), axis=0)
                     # Calculation superlearner SHAP values
                     if "super" in self.best_algorithms:
                         id_super = pd.concat(id_list_super, ignore_index=True)
@@ -1122,9 +1077,7 @@ class XRAI:
                         if id_data is None:
                             id_data = id_super.values
                         else:
-                            id_data = np.concatenate(
-                                (id_data, np.array(id_super.values))
-                            )
+                            id_data = np.concatenate((id_data, np.array(id_super.values)))
 
                     self.shap_values = shap.Explanation(
                         values=sh_values,
@@ -1134,14 +1087,10 @@ class XRAI:
                     )
 
                 outcome_dict["true"] = np.concatenate(outcome_dict["true"], axis=0)
-                outcome_dict["predicted"] = np.concatenate(
-                    outcome_dict["predicted"], axis=0
-                )
+                outcome_dict["predicted"] = np.concatenate(outcome_dict["predicted"], axis=0)
 
                 if "super" in self.best_algorithms:
-                    outcome_dict["super_true"] = np.concatenate(
-                        outcome_dict["super_true"], axis=0
-                    )
+                    outcome_dict["super_true"] = np.concatenate(outcome_dict["super_true"], axis=0)
                     outcome_dict["super_predicted"] = np.concatenate(
                         outcome_dict["super_predicted"], axis=0
                     )
@@ -1160,11 +1109,7 @@ class XRAI:
                     {
                         "fold": [i for i in range(self.df_nested_cv.shape[1])],
                         "n": [
-                            len(
-                                self.df_nested_cv.loc[
-                                    self.df_nested_cv[col] == -1, "fold_0"
-                                ]
-                            )
+                            len(self.df_nested_cv.loc[self.df_nested_cv[col] == -1, "fold_0"])
                             for col in self.df_nested_cv.columns.tolist()
                         ],
                         "r": r_list,
@@ -1197,15 +1142,11 @@ class XRAI:
                 )
                 # Write each dataframe to a different worksheet.
                 df_results.to_excel(writer, sheet_name="full results", index=False)
-                df_results_short.to_excel(
-                    writer, sheet_name="short results", index=False
-                )
+                df_results_short.to_excel(writer, sheet_name="short results", index=False)
                 writer.close()
 
                 # Save SHAP values
-                df_id_data = pd.DataFrame(
-                    id_data, columns=["Class", "session", "fold", "learner"]
-                )
+                df_id_data = pd.DataFrame(id_data, columns=["Class", "session", "fold", "learner"])
                 df_outcome = pd.DataFrame(outcome_dict)
                 if self.xAI == True:
                     df_sh_values = pd.DataFrame(sh_values, columns=feature_list)
@@ -1253,12 +1194,8 @@ class XRAI:
                     for feature in df_sh_values.columns.tolist():
                         dict_cors[feature] = []
                         for fold in np.unique(df_id_data["fold"]):
-                            shap_slice = df_sh_values.loc[
-                                df_id_data["fold"] == fold, feature
-                            ]
-                            data_slice = df_sh_data.loc[
-                                df_id_data["fold"] == fold, feature
-                            ]
+                            shap_slice = df_sh_values.loc[df_id_data["fold"] == fold, feature]
+                            data_slice = df_sh_data.loc[df_id_data["fold"] == fold, feature]
                             try:
                                 dict_cors[feature].append(
                                     cor(shap_slice.tolist(), data_slice.tolist())
@@ -1266,9 +1203,7 @@ class XRAI:
                             except:
                                 dict_cors[feature].append(0)
 
-                    df_cors = pd.DataFrame(
-                        dict_cors, index=range(len(self.best_algorithms))
-                    )
+                    df_cors = pd.DataFrame(dict_cors, index=range(len(self.best_algorithms)))
                     dict_cors = {}
                     for feature in df_cors.columns.tolist():
                         dict_cors[feature] = []
@@ -1283,9 +1218,7 @@ class XRAI:
                     df_shap_values_new["lower 95%-CI"] = df_cors_short.loc[1].tolist()
                     df_shap_values_new["higher 95%-CI"] = df_cors_short.loc[2].tolist()
                     writer = pd.ExcelWriter("SHAP-IMPORTANCE.xlsx", engine="xlsxwriter")
-                    df_shap_values_new.to_excel(
-                        writer, sheet_name="SHAP importance", index=False
-                    )
+                    df_shap_values_new.to_excel(writer, sheet_name="SHAP importance", index=False)
                     df_cors.to_excel(writer, sheet_name="Correlations", index=False)
                     writer.close()
 
@@ -1299,9 +1232,7 @@ class XRAI:
         shap.summary_plot(self.shap_values, plot_size=(25, 15), max_display=15)
         plt.savefig(os.path.join(self.output_path, "summary_plot.png"))
         # plt.show()
-        shap.summary_plot(
-            self.shap_values, plot_size=(25, 15), max_display=15, show=False
-        )
+        shap.summary_plot(self.shap_values, plot_size=(25, 15), max_display=15, show=False)
         plt.savefig(os.path.join(self.output_path, "summary_plot_2.png"))
         # plt.show()
         shap.plots.waterfall(self.shap_values[10], max_display=20, show=False)
@@ -1320,9 +1251,7 @@ class XRAI:
         # sys.stdout = f
         shap.summary_plot(self.shap_values, plot_size=(25, 15), max_display=15)
         plt.show()
-        shap.summary_plot(
-            self.shap_values, plot_size=(25, 15), max_display=15, show=False
-        )
+        shap.summary_plot(self.shap_values, plot_size=(25, 15), max_display=15, show=False)
         # plt.savefig(os.path.join(self.output_path, "summary_plot_2.png"))
         plt.show()
         shap.plots.waterfall(self.shap_values[10], max_display=20, show=False)
@@ -1355,9 +1284,7 @@ class XRAI:
                     X = X[:, 3:]
                     for model in dict_models[index]:
                         if model != "gpb" and model != "merf" and model != "super":
-                            yhat_list.append(
-                                dict_models[index][model].predict(X).reshape(-1, 1)
-                            )
+                            yhat_list.append(dict_models[index][model].predict(X).reshape(-1, 1))
                         elif model == "gpb":
                             pred = dict_models[index][model].predict(
                                 data=np.delete(X, Z_loc, axis=1),
