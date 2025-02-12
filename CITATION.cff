@@ -4,6 +4,8 @@ authors:
   - family-names: Lalk
     given-names: Christopher
     orcid: https://orcid.org/0000-0002-1793-3507
+  - family-names: Mathew
+    given-names: Roshan
 title: "XRAI - eXplanable Regression-based Artificial Intelligence"
 version: 0.1.1
 date-released: 2024-12-15
